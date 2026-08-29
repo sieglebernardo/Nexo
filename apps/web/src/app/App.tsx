@@ -16,6 +16,7 @@ import { authClient } from "../auth/client.js";
 import { Projects } from "../projects/Projects.js";
 
 const workspaceQueryKey = ["workspaces"] as const;
+const authNoticeStorageKey = "nexo.auth-notice";
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiClientError || error instanceof Error) {
@@ -40,7 +41,9 @@ function AuthScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useState<string | undefined>(
+    () => sessionStorage.getItem(authNoticeStorageKey) ?? undefined,
+  );
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,6 +51,7 @@ function AuthScreen() {
     event.preventDefault();
     setError(undefined);
     setMessage(undefined);
+    sessionStorage.removeItem(authNoticeStorageKey);
     setIsSubmitting(true);
 
     try {
@@ -61,7 +65,9 @@ function AuthScreen() {
         if (result.error) {
           setError(result.error.message ?? "Could not create your account");
         } else {
-          setMessage("Check your inbox to verify your email, then sign in.");
+          const notice = "Check your inbox to verify your email, then sign in.";
+          sessionStorage.setItem(authNoticeStorageKey, notice);
+          setMessage(notice);
           setMode("sign-in");
           setPassword("");
         }
@@ -69,6 +75,8 @@ function AuthScreen() {
         const result = await authClient.signIn.email({ email, password });
         if (result.error) {
           setError(result.error.message ?? "Could not sign in");
+        } else {
+          sessionStorage.removeItem(authNoticeStorageKey);
         }
       }
     } finally {
@@ -109,14 +117,22 @@ function AuthScreen() {
             <legend className="sr-only">Authentication mode</legend>
             <button
               className={mode === "sign-in" ? "is-active" : ""}
-              onClick={() => setMode("sign-in")}
+              onClick={() => {
+                sessionStorage.removeItem(authNoticeStorageKey);
+                setMessage(undefined);
+                setMode("sign-in");
+              }}
               type="button"
             >
               Sign in
             </button>
             <button
               className={mode === "sign-up" ? "is-active" : ""}
-              onClick={() => setMode("sign-up")}
+              onClick={() => {
+                sessionStorage.removeItem(authNoticeStorageKey);
+                setMessage(undefined);
+                setMode("sign-up");
+              }}
               type="button"
             >
               Create account

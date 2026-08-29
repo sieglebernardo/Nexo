@@ -33,6 +33,8 @@ npm run check
 npm run typecheck
 npm test
 npm run build
+npm run test:e2e
 ```
 
-Add database and end-to-end checks as their infrastructure lands.
+The end-to-end check requires local PostgreSQL and Mailpit from `compose.yaml`. Local development
+and the browser test apply pending database migrations before starting.

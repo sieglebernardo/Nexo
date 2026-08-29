@@ -20,6 +20,8 @@ npm run db:migrate
 npm run dev
 ```
 
+`npm run dev` applies pending migrations before starting the API and web client.
+
 The web app runs at `http://localhost:5173` and the API at `http://localhost:3000`.
 Development verification and invitation emails are available in Mailpit at
 `http://localhost:8025`.
@@ -32,6 +34,19 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+## Browser smoke test
+
+With PostgreSQL and Mailpit running, install the browser once and run the real authentication and
+task lifecycle smoke test:
+
+```sh
+npx playwright install chromium
+npm run test:e2e
+```
+
+The smoke test uses a unique verified account and removes its workspace, tasks, activity, identity,
+and email after the run.
 
 ## Repository map
 
