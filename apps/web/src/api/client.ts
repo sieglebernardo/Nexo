@@ -10,15 +10,18 @@ import type {
   ProjectRole,
   ProjectSummary,
   SetProjectAccessBody,
+  TaskAssigneeListResponse,
   TaskListResponse,
   TaskSummary,
   TransitionTaskBody,
   UpdateProjectBody,
   UpdateTaskBody,
   UpdateWorkflowBody,
+  UpdateWorkspaceSettingsBody,
   Workflow,
   WorkspaceListResponse,
   WorkspaceMembersResponse,
+  WorkspaceSettings,
   WorkspaceSummary,
 } from "@nexo/contracts";
 
@@ -70,6 +73,23 @@ export function getWorkspaces(signal?: AbortSignal): Promise<WorkspaceListRespon
 
 export function createWorkspace(input: CreateWorkspaceBody): Promise<WorkspaceSummary> {
   return apiRequest("/api/v1/workspaces", { body: JSON.stringify(input), method: "POST" });
+}
+
+export function getWorkspaceSettings(
+  workspaceId: string,
+  signal?: AbortSignal,
+): Promise<WorkspaceSettings> {
+  return apiRequest(`/api/v1/workspaces/${workspaceId}/settings`, signal ? { signal } : undefined);
+}
+
+export function updateWorkspaceSettings(
+  workspaceId: string,
+  input: UpdateWorkspaceSettingsBody,
+): Promise<WorkspaceSettings> {
+  return apiRequest(`/api/v1/workspaces/${workspaceId}/settings`, {
+    body: JSON.stringify(input),
+    method: "PATCH",
+  });
 }
 
 export function getWorkspaceMembers(
@@ -209,6 +229,17 @@ export function getTasks(
   if (input.limit) query.set("limit", String(input.limit));
   return apiRequest(
     `/api/v1/workspaces/${workspaceId}/projects/${projectId}/tasks?${query}`,
+    signal ? { signal } : undefined,
+  );
+}
+
+export function getTaskAssignees(
+  workspaceId: string,
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<TaskAssigneeListResponse> {
+  return apiRequest(
+    `/api/v1/workspaces/${workspaceId}/projects/${projectId}/task-assignees`,
     signal ? { signal } : undefined,
   );
 }

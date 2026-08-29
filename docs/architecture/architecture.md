@@ -86,6 +86,8 @@ The backend policy layer is authoritative. Workspace roles are Owner, Admin, Mem
 - Load task detail separately.
 - Paginate board lanes and lists with deterministic cursors.
 - Apply visibility and filters server-side.
+- Apply the workspace task board visibility mode after project access; Private mode filters by the
+  actor's Workspace Membership ID and excludes unassigned tasks.
 - Patch optimistic client caches and reconcile targeted queries.
 - Begin search with PostgreSQL full-text and trigram indexes.
 

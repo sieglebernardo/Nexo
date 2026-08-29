@@ -2,6 +2,7 @@ import {
   ApiErrorSchema,
   type CreateTaskBody,
   CreateTaskBodySchema,
+  TaskAssigneeListResponseSchema,
   type TaskListQuery,
   TaskListQuerySchema,
   TaskListResponseSchema,
@@ -61,6 +62,26 @@ export async function registerTaskRoutes(
         request.params.projectId,
         request.query,
       );
+    },
+  );
+
+  app.get<{ Params: ProjectParams }>(
+    "/api/v1/workspaces/:workspaceId/projects/:projectId/task-assignees",
+    {
+      schema: {
+        params: ProjectParamsSchema,
+        response: { 200: TaskAssigneeListResponseSchema, ...commonErrors },
+      },
+    },
+    async (request) => {
+      const user = await resolveSession(request);
+      return {
+        assignees: await service.listTaskAssignees(
+          user.id,
+          request.params.workspaceId,
+          request.params.projectId,
+        ),
+      };
     },
   );
 

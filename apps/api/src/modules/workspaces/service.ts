@@ -142,6 +142,38 @@ export class WorkspaceService {
     return workspace;
   }
 
+  async getSettings(userId: string, workspaceId: string) {
+    await this.requireOwner(userId, workspaceId);
+    const rows = await this.database.db
+      .select({ taskBoardVisibility: workspaces.taskBoardVisibility })
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .limit(1);
+    const settings = rows[0];
+    if (!settings) {
+      throw new ApiProblem(404, "workspace_not_found", "Workspace was not found");
+    }
+    return settings;
+  }
+
+  async updateSettings(
+    userId: string,
+    workspaceId: string,
+    input: Readonly<{ taskBoardVisibility: "collaborative" | "private" }>,
+  ) {
+    await this.requireOwner(userId, workspaceId);
+    const rows = await this.database.db
+      .update(workspaces)
+      .set({ taskBoardVisibility: input.taskBoardVisibility, updatedAt: new Date() })
+      .where(eq(workspaces.id, workspaceId))
+      .returning({ taskBoardVisibility: workspaces.taskBoardVisibility });
+    const settings = rows[0];
+    if (!settings) {
+      throw new ApiProblem(404, "workspace_not_found", "Workspace was not found");
+    }
+    return settings;
+  }
+
   async listMembers(userId: string, workspaceId: string) {
     await this.requireActor(userId, workspaceId, "membership:list");
 
@@ -498,6 +530,14 @@ export class WorkspaceService {
       throw new ApiProblem(403, "forbidden", "You do not have permission for this action");
     }
 
+    return actor;
+  }
+
+  private async requireOwner(userId: string, workspaceId: string): Promise<ActorMembership> {
+    const actor = await this.requireActor(userId, workspaceId, "workspace:manage");
+    if (actor.role !== "owner") {
+      throw new ApiProblem(403, "forbidden", "Only the workspace owner can manage settings");
+    }
     return actor;
   }
 }

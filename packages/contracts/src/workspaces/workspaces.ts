@@ -9,6 +9,26 @@ export const WorkspaceRoleSchema = Type.Union([
 
 export type WorkspaceRole = Static<typeof WorkspaceRoleSchema>;
 
+export const TaskBoardVisibilitySchema = Type.Union([
+  Type.Literal("collaborative"),
+  Type.Literal("private"),
+]);
+
+export type TaskBoardVisibility = Static<typeof TaskBoardVisibilitySchema>;
+
+export const WorkspaceSettingsSchema = Type.Object({
+  taskBoardVisibility: TaskBoardVisibilitySchema,
+});
+
+export type WorkspaceSettings = Static<typeof WorkspaceSettingsSchema>;
+
+export const UpdateWorkspaceSettingsBodySchema = Type.Object(
+  { taskBoardVisibility: TaskBoardVisibilitySchema },
+  { additionalProperties: false },
+);
+
+export type UpdateWorkspaceSettingsBody = Static<typeof UpdateWorkspaceSettingsBodySchema>;
+
 export const WorkspaceAbilitiesSchema = Type.Object({
   canCreateProjects: Type.Boolean(),
   canDeactivateMembers: Type.Boolean(),

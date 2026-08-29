@@ -64,6 +64,7 @@ describe("task list vertical slice", () => {
       "0001_identity_workspace.sql",
       "0002_project_workflow.sql",
       "0003_task_list.sql",
+      "0004_kanban_visibility.sql",
     ]) {
       const migration = await readFile(
         new URL(`../../../../../packages/database/migrations/${migrationName}`, import.meta.url),
@@ -179,6 +180,7 @@ describe("task list vertical slice", () => {
     expect(createResponse.statusCode).toBe(201);
     const created = createResponse.json<TaskSummary>();
     expect(created).toMatchObject({
+      assignee: null,
       archivedAt: null,
       dueDate: "2026-09-10",
       identifier: "NEX-1",
@@ -333,11 +335,117 @@ describe("task list vertical slice", () => {
     expect(invalidCursor.json()).toMatchObject({ code: "invalid_task_cursor" });
   });
 
+  it("filters private boards by accountable assignee and keeps unassigned tasks hidden", async () => {
+    const project = await createProject("alice", workspaceAId, teamAId, "BOARD", "workspace");
+    const aliceTaskResponse = await request("alice", "POST", tasksUrl(workspaceAId, project.id), {
+      assigneeId: aliceMembershipId,
+      title: "Alice task",
+    });
+    const bobTaskResponse = await request("alice", "POST", tasksUrl(workspaceAId, project.id), {
+      assigneeId: bobMembershipId,
+      title: "Bob task",
+    });
+    const unassignedResponse = await request("alice", "POST", tasksUrl(workspaceAId, project.id), {
+      title: "Unassigned task",
+    });
+    expect(aliceTaskResponse.statusCode).toBe(201);
+    expect(bobTaskResponse.statusCode).toBe(201);
+    expect(unassignedResponse.statusCode).toBe(201);
+    expect(aliceTaskResponse.json<TaskSummary>().assignee).toEqual({
+      id: aliceMembershipId,
+      name: "Alice Owner",
+    });
+
+    const collaborativeTasks = await listTasks("bob", workspaceAId, project.id);
+    expect(collaborativeTasks.tasks.map((task) => task.title).sort()).toEqual([
+      "Alice task",
+      "Bob task",
+      "Unassigned task",
+    ]);
+    const assigneeResponse = await request(
+      "alice",
+      "GET",
+      `/api/v1/workspaces/${workspaceAId}/projects/${project.id}/task-assignees`,
+    );
+    expect(assigneeResponse.statusCode).toBe(200);
+    expect(assigneeResponse.json()).toMatchObject({
+      assignees: [
+        { id: aliceMembershipId, name: "Alice Owner" },
+        { id: bobMembershipId, name: "Bob Member" },
+      ],
+    });
+    expect(
+      (
+        await request(
+          "bob",
+          "GET",
+          `/api/v1/workspaces/${workspaceAId}/projects/${project.id}/task-assignees`,
+        )
+      ).statusCode,
+    ).toBe(403);
+
+    const forbiddenSettingChange = await request(
+      "bob",
+      "PATCH",
+      `/api/v1/workspaces/${workspaceAId}/settings`,
+      { taskBoardVisibility: "private" },
+    );
+    expect(forbiddenSettingChange.statusCode).toBe(403);
+    const settingChange = await request(
+      "alice",
+      "PATCH",
+      `/api/v1/workspaces/${workspaceAId}/settings`,
+      { taskBoardVisibility: "private" },
+    );
+    expect(settingChange.statusCode).toBe(200);
+    expect(settingChange.json()).toEqual({ taskBoardVisibility: "private" });
+
+    expect(
+      (await listTasks("alice", workspaceAId, project.id)).tasks.map((task) => task.title),
+    ).toEqual(["Alice task"]);
+    expect(
+      (await listTasks("bob", workspaceAId, project.id)).tasks.map((task) => task.title),
+    ).toEqual(["Bob task"]);
+
+    const aliceTask = aliceTaskResponse.json<TaskSummary>();
+    const reassignResponse = await request(
+      "alice",
+      "PATCH",
+      taskUrl(workspaceAId, project.id, aliceTask.id),
+      { assigneeId: bobMembershipId, version: aliceTask.version },
+    );
+    expect(reassignResponse.statusCode).toBe(200);
+    expect(reassignResponse.json<TaskSummary>().assignee?.id).toBe(bobMembershipId);
+    expect((await listTasks("alice", workspaceAId, project.id)).tasks).toHaveLength(0);
+    expect((await listTasks("bob", workspaceAId, project.id)).tasks).toHaveLength(2);
+
+    const assignmentActivity = await db
+      .select({ payload: schema.taskActivities.payload, type: schema.taskActivities.type })
+      .from(schema.taskActivities)
+      .where(eq(schema.taskActivities.taskId, aliceTask.id))
+      .orderBy(asc(schema.taskActivities.occurredAt), asc(schema.taskActivities.id));
+    expect(assignmentActivity.at(-1)).toEqual({
+      payload: {
+        fromAssigneeMembershipId: aliceMembershipId,
+        toAssigneeMembershipId: bobMembershipId,
+      },
+      type: "task-assigned",
+    });
+  });
+
   it("enforces project roles and workspace isolation on task reads and writes", async () => {
     const privateProject = await createProject("alice", workspaceAId, teamAId, "SEC", "private");
     expect(
       (await request("bob", "GET", tasksUrl(workspaceAId, privateProject.id))).statusCode,
     ).toBe(404);
+    const inaccessibleAssignee = await request(
+      "alice",
+      "POST",
+      tasksUrl(workspaceAId, privateProject.id),
+      { assigneeId: bobMembershipId, title: "Cannot assign outside project access" },
+    );
+    expect(inaccessibleAssignee.statusCode).toBe(400);
+    expect(inaccessibleAssignee.json()).toMatchObject({ code: "invalid_task_assignee" });
 
     const sharedProject = await createProject("alice", workspaceAId, teamAId, "SHARE", "workspace");
     const createdResponse = await request(
@@ -456,7 +564,7 @@ describe("task list vertical slice", () => {
   }
 
   async function listTasks(
-    actor: "alice",
+    actor: "alice" | "bob",
     workspaceId: string,
     projectId: string,
     archived = false,
