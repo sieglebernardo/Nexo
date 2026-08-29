@@ -1056,9 +1056,68 @@ tr.is-inactive {
   max-width: 650px;
 }
 
-.task-list-card {
+.workspace-settings-card {
+  display: grid;
+  gap: 24px;
+}
+
+.workspace-settings-card > div:first-child p {
+  max-width: 720px;
+  margin-bottom: 0;
+}
+
+.visibility-settings-form {
   display: grid;
   gap: 18px;
+}
+
+.visibility-settings-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.visibility-settings-form legend {
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.visibility-settings-form label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.visibility-settings-form label.is-selected {
+  border-color: #aeb9f4;
+  background: #f6f7ff;
+  box-shadow: 0 0 0 2px rgb(80 103 232 / 8%);
+}
+
+.visibility-settings-form label span {
+  display: grid;
+  gap: 4px;
+}
+
+.visibility-settings-form label small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.task-board-card {
+  display: grid;
+  gap: 18px;
+  overflow: hidden;
 }
 
 .task-list-heading {
@@ -1106,7 +1165,7 @@ tr.is-inactive {
 
 .task-create-form {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) 165px auto;
+  grid-template-columns: minmax(240px, 1fr) minmax(150px, 190px) 165px auto;
   align-items: center;
   gap: 9px;
   padding: 12px;
@@ -1116,6 +1175,7 @@ tr.is-inactive {
 }
 
 .task-create-form input,
+.task-create-form select,
 .task-title-form input,
 .task-control input,
 .task-control select {
@@ -1127,34 +1187,127 @@ tr.is-inactive {
   background: white;
 }
 
-.task-list {
+.kanban-board {
   display: grid;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
+  grid-auto-columns: minmax(270px, 300px);
+  grid-auto-flow: column;
+  align-items: start;
+  gap: 12px;
+  padding: 2px 2px 14px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
-.task-row {
+.kanban-lane {
   display: grid;
-  grid-template-columns: 76px minmax(220px, 1fr) minmax(150px, 0.35fr) 150px 68px;
+  grid-template-rows: auto minmax(120px, 1fr);
+  min-height: 260px;
+  border: 1px solid #dde3e5;
+  border-radius: 13px;
+  background: #f5f7f7;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.kanban-lane.is-drop-target {
+  border-color: #8494ec;
+  background: #f2f4ff;
+  box-shadow: inset 0 0 0 2px rgb(80 103 232 / 12%);
+}
+
+.kanban-lane-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
-  min-height: 64px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #edf0f1;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid #e1e6e7;
+}
+
+.kanban-lane-heading h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kanban-status-mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.retired-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.kanban-lane-cards {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-height: 180px;
+  padding: 10px;
+}
+
+.kanban-empty-lane {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  border: 1px dashed #d2d9db;
+  border-radius: 10px;
+  color: #90999d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.task-card {
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid #dfe4e5;
+  border-radius: 11px;
   background: white;
+  box-shadow: 0 3px 12px rgb(25 37 43 / 5%);
+  cursor: grab;
   transition:
     opacity 120ms ease,
-    background 120ms ease;
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.task-row:last-child {
-  border-bottom: 0;
+.task-card:hover {
+  border-color: #c6ced1;
+  box-shadow: 0 6px 16px rgb(25 37 43 / 8%);
 }
 
-.task-row.is-optimistic {
+.task-card:active {
+  cursor: grabbing;
+}
+
+.task-card.is-optimistic {
   background: #f8f9ff;
-  opacity: 0.65;
+  opacity: 0.62;
+}
+
+.task-card-topline,
+.task-card-footer,
+.task-title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-drag-handle {
+  color: #9aa4a9;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .task-identifier {
@@ -1170,17 +1323,14 @@ tr.is-inactive {
 }
 
 .task-title-button {
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
   padding: 0;
-  overflow: hidden;
   border: 0;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   background: transparent;
   cursor: pointer;
   font-weight: 750;
+  line-height: 1.4;
 }
 
 .task-title-button:disabled {
@@ -1190,9 +1340,12 @@ tr.is-inactive {
 
 .task-title-form {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) auto auto;
-  align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+
+.task-card-controls {
+  display: grid;
+  gap: 8px;
 }
 
 .task-meta {
@@ -1206,17 +1359,26 @@ tr.is-inactive {
 
 .task-control {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: grid;
+  gap: 4px;
 }
 
-.task-control select {
+.task-control > span:first-child {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.status-control select {
   padding-left: 27px;
 }
 
 .status-dot {
   position: absolute;
   left: 10px;
+  bottom: 16px;
   z-index: 1;
   width: 8px;
   height: 8px;
@@ -1225,6 +1387,7 @@ tr.is-inactive {
 }
 
 .task-archive-button {
+  padding: 0;
   color: #59676e;
 }
 
@@ -1271,18 +1434,12 @@ tr.is-inactive {
     grid-column: 1 / -1;
   }
 
-  .task-row {
-    grid-template-columns: 68px minmax(180px, 1fr) minmax(140px, 0.4fr);
+  .task-create-form {
+    grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.6fr);
   }
 
-  .due-date-control {
+  .task-create-form .primary-button {
     grid-column: 2;
-  }
-
-  .task-archive-button {
-    grid-column: 3;
-    grid-row: 2;
-    justify-self: end;
   }
 }
 
@@ -1354,6 +1511,7 @@ tr.is-inactive {
   .invite-form,
   .project-create-form,
   .settings-form,
+  .visibility-settings-form fieldset,
   .project-grid {
     grid-template-columns: 1fr;
   }
@@ -1365,24 +1523,16 @@ tr.is-inactive {
     flex-direction: column;
   }
 
-  .task-create-form,
-  .task-row {
+  .task-create-form {
     grid-template-columns: 1fr;
   }
 
-  .task-row {
-    gap: 7px;
-  }
-
-  .task-control,
-  .due-date-control,
-  .task-archive-button {
+  .task-create-form .primary-button {
     grid-column: auto;
-    grid-row: auto;
   }
 
-  .task-archive-button {
-    justify-self: start;
+  .kanban-board {
+    grid-auto-columns: minmax(250px, 88vw);
   }
 
   .workflow-status-row {

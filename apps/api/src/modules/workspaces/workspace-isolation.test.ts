@@ -65,6 +65,7 @@ describe("workspace tenant isolation", () => {
       "0001_identity_workspace.sql",
       "0002_project_workflow.sql",
       "0003_task_list.sql",
+      "0004_kanban_visibility.sql",
     ]) {
       const migration = await readFile(
         new URL(`../../../../../packages/database/migrations/${migrationName}`, import.meta.url),
@@ -225,5 +226,74 @@ describe("workspace tenant isolation", () => {
     });
     expect(wrongRecipient.statusCode).toBe(403);
     expect(wrongRecipient.json()).toMatchObject({ code: "invitation_email_mismatch" });
+  });
+
+  it("keeps task board visibility settings owner-only and tenant-scoped", async () => {
+    const aliceWorkspaceResponse = await app.inject({
+      headers: { "x-test-user": "alice" },
+      method: "POST",
+      payload: { name: "Board Settings", timezone: "UTC" },
+      url: "/api/v1/workspaces",
+    });
+    const bobWorkspaceResponse = await app.inject({
+      headers: { "x-test-user": "bob" },
+      method: "POST",
+      payload: { name: "Bob Board", timezone: "UTC" },
+      url: "/api/v1/workspaces",
+    });
+    const aliceWorkspace = aliceWorkspaceResponse.json<{ id: string }>();
+    const bobWorkspace = bobWorkspaceResponse.json<{ id: string }>();
+
+    const defaultSettings = await app.inject({
+      headers: { "x-test-user": "alice" },
+      method: "GET",
+      url: `/api/v1/workspaces/${aliceWorkspace.id}/settings`,
+    });
+    expect(defaultSettings.statusCode).toBe(200);
+    expect(defaultSettings.json()).toEqual({ taskBoardVisibility: "collaborative" });
+
+    const crossWorkspaceRead = await app.inject({
+      headers: { "x-test-user": "alice" },
+      method: "GET",
+      url: `/api/v1/workspaces/${bobWorkspace.id}/settings`,
+    });
+    expect(crossWorkspaceRead.statusCode).toBe(404);
+
+    await app.inject({
+      headers: { "x-test-user": "alice" },
+      method: "POST",
+      payload: { email: bob.email, role: "member" },
+      url: `/api/v1/workspaces/${aliceWorkspace.id}/invitations`,
+    });
+    const invitationUrl = new URL(emailDelivery.invitations[0]?.url ?? "");
+    await app.inject({
+      headers: { "x-test-user": "bob" },
+      method: "POST",
+      payload: { token: invitationUrl.searchParams.get("invitation") },
+      url: "/api/v1/invitations/accept",
+    });
+
+    const memberRead = await app.inject({
+      headers: { "x-test-user": "bob" },
+      method: "GET",
+      url: `/api/v1/workspaces/${aliceWorkspace.id}/settings`,
+    });
+    const memberWrite = await app.inject({
+      headers: { "x-test-user": "bob" },
+      method: "PATCH",
+      payload: { taskBoardVisibility: "private" },
+      url: `/api/v1/workspaces/${aliceWorkspace.id}/settings`,
+    });
+    expect(memberRead.statusCode).toBe(403);
+    expect(memberWrite.statusCode).toBe(403);
+
+    const ownerWrite = await app.inject({
+      headers: { "x-test-user": "alice" },
+      method: "PATCH",
+      payload: { taskBoardVisibility: "private" },
+      url: `/api/v1/workspaces/${aliceWorkspace.id}/settings`,
+    });
+    expect(ownerWrite.statusCode).toBe(200);
+    expect(ownerWrite.json()).toEqual({ taskBoardVisibility: "private" });
   });
 });

@@ -134,6 +134,16 @@ test("verified user can manage a task through its project workflow", async ({ pa
     await workspaceForm.getByRole("button", { name: "Create workspace" }).click();
     await expect(page.getByRole("heading", { name: /Welcome to E2E Workspace/ })).toBeVisible();
 
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Task Board Visibility" })).toBeVisible();
+    await page.getByRole("radio", { name: /Private/ }).check();
+    const visibilityResponse = page.waitForResponse(
+      (response) => response.request().method() === "PATCH" && response.url().endsWith("/settings"),
+    );
+    await page.getByRole("button", { name: "Save visibility" }).click();
+    expect((await visibilityResponse).status()).toBe(200);
+    await expect(page.getByText("Board visibility saved.")).toBeVisible();
+
     await page.getByRole("button", { name: "Projects", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Work your team can access" })).toBeVisible();
     await page.getByRole("button", { name: "Create project", exact: true }).click();
@@ -141,67 +151,68 @@ test("verified user can manage a task through its project workflow", async ({ pa
     await projectForm.getByLabel("Name").fill("E2E Task Project");
     await projectForm.getByLabel("Key").fill("E2E");
     await projectForm.getByRole("button", { name: "Create project" }).click();
-    await expect(page.getByRole("heading", { name: "Task list" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Task board" })).toBeVisible();
 
     await page.getByPlaceholder("Add a task…").fill("Browser task");
+    await expect(page.getByLabel("New task assignee")).toHaveValue(/.+/);
     await page.getByLabel("New task due date").fill("2026-10-01");
     const createTaskResponse = page.waitForResponse(
       (response) => response.request().method() === "POST" && response.url().endsWith("/tasks"),
     );
     await page.getByRole("button", { name: "Add task" }).click();
     expect((await createTaskResponse).status()).toBe(201);
-    const taskRow = page.locator(".task-row").filter({
+    const taskCard = page.locator(".task-card").filter({
       has: page.getByText("E2E-1", { exact: true }),
     });
-    await expect(taskRow).toBeVisible();
-    await expect(taskRow.getByText("E2E-1", { exact: true })).toBeVisible();
+    await expect(taskCard).toBeVisible();
+    await expect(taskCard.getByText("E2E-1", { exact: true })).toBeVisible();
 
-    await taskRow.getByRole("button", { name: "Browser task" }).click();
-    await taskRow.getByLabel("Rename E2E-1").fill("Browser task renamed");
+    await taskCard.getByRole("button", { name: "Browser task" }).click();
+    await taskCard.getByLabel("Rename E2E-1").fill("Browser task renamed");
     const renameTaskResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "PATCH" &&
         /\/tasks\/[^/]+$/.test(new URL(response.url()).pathname),
     );
-    await taskRow.getByRole("button", { name: "Save" }).click();
+    await taskCard.getByRole("button", { name: "Save" }).click();
     expect((await renameTaskResponse).status()).toBe(200);
-    await expect(taskRow).toBeVisible();
-    const statusSelect = taskRow.getByLabel("Status for E2E-1");
+    await expect(taskCard).toBeVisible();
+    const statusSelect = taskCard.getByLabel("Status for E2E-1");
     const transitionResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" && response.url().endsWith("/transition"),
     );
-    await statusSelect.selectOption({ label: "In progress" });
+    await taskCard.dragTo(page.getByRole("region", { name: "In progress" }));
     expect((await transitionResponse).status()).toBe(200);
     await expect(statusSelect.locator("option:checked")).toHaveText("In progress");
-    await expect(taskRow).not.toContainText("Saving…");
+    await expect(taskCard).not.toContainText("Saving…");
     const dueDateResponse = page.waitForResponse(
       (response) =>
         response.request().method() === "PATCH" &&
         /\/tasks\/[^/]+$/.test(new URL(response.url()).pathname),
     );
-    await taskRow.getByLabel("Due date for E2E-1").fill("2026-10-02");
+    await taskCard.getByLabel("Due date for E2E-1").fill("2026-10-02");
     expect((await dueDateResponse).status()).toBe(200);
-    await expect(taskRow.getByLabel("Due date for E2E-1")).toHaveValue("2026-10-02");
-    await expect(taskRow).not.toContainText("Saving…");
+    await expect(taskCard.getByLabel("Due date for E2E-1")).toHaveValue("2026-10-02");
+    await expect(taskCard).not.toContainText("Saving…");
 
     const archiveResponse = page.waitForResponse(
       (response) => response.request().method() === "POST" && response.url().endsWith("/archive"),
     );
-    await taskRow.getByRole("button", { name: "Archive" }).click();
+    await taskCard.getByRole("button", { name: "Archive" }).click();
     expect((await archiveResponse).status()).toBe(200);
-    await expect(taskRow).toBeHidden();
+    await expect(taskCard).toBeHidden();
     await page.getByRole("button", { name: "Archived", exact: true }).click();
-    await expect(taskRow).toBeVisible();
-    await expect(taskRow.getByLabel("Due date for E2E-1")).toHaveValue("2026-10-02");
+    await expect(taskCard).toBeVisible();
+    await expect(taskCard.getByLabel("Due date for E2E-1")).toHaveValue("2026-10-02");
     const restoreResponse = page.waitForResponse(
       (response) => response.request().method() === "POST" && response.url().endsWith("/restore"),
     );
-    await taskRow.getByRole("button", { name: "Restore" }).click();
+    await taskCard.getByRole("button", { name: "Restore" }).click();
     expect((await restoreResponse).status()).toBe(200);
-    await expect(taskRow).toBeHidden();
+    await expect(taskCard).toBeHidden();
     await page.getByRole("button", { name: "Active", exact: true }).click();
-    await expect(taskRow).toBeVisible();
+    await expect(taskCard).toBeVisible();
     await expect(browserFailures).toEqual([]);
   } finally {
     const cleanupResults = await Promise.allSettled([

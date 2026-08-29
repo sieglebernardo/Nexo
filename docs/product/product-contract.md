@@ -26,6 +26,7 @@ The product term is **Task**. Nexo must remain useful without engineering-specif
 | Trash | Recoverable for 30 days before purge. |
 | Authentication | Verified email/password, secure cookie sessions, invite-capable workspaces. |
 | Project views | Default Board and List; saved views wait until V1.5. |
+| Task board visibility | Workspace-wide Collaborative by default; Owner may switch to Private assigned-only boards. |
 | Notifications | In-app assignment, mention, and relevant comment notifications. |
 | AI | Excluded from V1. |
 
@@ -36,6 +37,7 @@ The product term is **Task**. Nexo must remain useful without engineering-specif
 - Projects with configurable workflow statuses and stable categories.
 - Task creation, editing, transition, assignment, priority, labels, due date, archive, trash, and restore.
 - Board and list over the same tasks.
+- Owner-only workspace setting for Collaborative or Private assigned-only task boards.
 - Server-side filters and workspace task search.
 - Quick create, command access, keyboard basics, and optimistic common mutations.
 - Comments, mentions, controlled attachments, structured activity, inbox, and My Work.

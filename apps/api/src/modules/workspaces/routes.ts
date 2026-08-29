@@ -8,8 +8,11 @@ import {
   CreateWorkspaceBodySchema,
   InvitationListResponseSchema,
   InvitationSchema,
+  type UpdateWorkspaceSettingsBody,
+  UpdateWorkspaceSettingsBodySchema,
   WorkspaceListResponseSchema,
   WorkspaceMembersResponseSchema,
+  WorkspaceSettingsSchema,
   WorkspaceSummarySchema,
 } from "@nexo/contracts";
 import { Type } from "@sinclair/typebox";
@@ -64,6 +67,35 @@ export async function registerWorkspaceRoutes(
       const user = await resolveSession(request);
       const workspace = await service.createWorkspace(user.id, request.body);
       return reply.status(201).send(workspace);
+    },
+  );
+
+  app.get<{ Params: WorkspaceParams }>(
+    "/api/v1/workspaces/:workspaceId/settings",
+    {
+      schema: {
+        params: WorkspaceParamsSchema,
+        response: { 200: WorkspaceSettingsSchema, ...commonErrors },
+      },
+    },
+    async (request) => {
+      const user = await resolveSession(request);
+      return service.getSettings(user.id, request.params.workspaceId);
+    },
+  );
+
+  app.patch<{ Body: UpdateWorkspaceSettingsBody; Params: WorkspaceParams }>(
+    "/api/v1/workspaces/:workspaceId/settings",
+    {
+      schema: {
+        body: UpdateWorkspaceSettingsBodySchema,
+        params: WorkspaceParamsSchema,
+        response: { 200: WorkspaceSettingsSchema, ...commonErrors },
+      },
+    },
+    async (request) => {
+      const user = await resolveSession(request);
+      return service.updateSettings(user.id, request.params.workspaceId, request.body);
     },
   );
 

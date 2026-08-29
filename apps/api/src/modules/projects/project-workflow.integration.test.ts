@@ -73,6 +73,7 @@ describe("project and workflow slice", () => {
       "0001_identity_workspace.sql",
       "0002_project_workflow.sql",
       "0003_task_list.sql",
+      "0004_kanban_visibility.sql",
     ]) {
       const migration = await readFile(
         new URL(`../../../../../packages/database/migrations/${migrationName}`, import.meta.url),

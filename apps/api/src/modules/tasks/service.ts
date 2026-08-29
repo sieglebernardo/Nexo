@@ -5,8 +5,10 @@ import {
   projects,
   taskActivities,
   tasks,
+  users,
   workflowStatuses,
   workflows,
+  workspaces,
 } from "@nexo/database";
 import {
   applyStatusCategoryTransition,
@@ -20,7 +22,7 @@ import {
   taskTitleError,
   type WorkspaceRole,
 } from "@nexo/domain";
-import { and, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 
 import { ApiProblem } from "../shared/api-problem.js";
@@ -33,7 +35,13 @@ type ActorMembership = Readonly<{
 type ProjectContext = Readonly<{
   explicitRole: ProjectRole | null;
   key: string;
+  taskBoardVisibility: "collaborative" | "private";
   visibility: ProjectVisibility;
+}>;
+
+type TaskAssigneeRow = Readonly<{
+  id: string;
+  name: string;
 }>;
 
 type TaskStatusRow = Readonly<{
@@ -44,6 +52,7 @@ type TaskStatusRow = Readonly<{
 }>;
 
 type TaskRow = Readonly<{
+  assignee: TaskAssigneeRow | null;
   archivedAt: Date | null;
   canceledAt: Date | null;
   completedAt: Date | null;
@@ -60,6 +69,14 @@ type TaskRow = Readonly<{
   workspaceId: string;
 }>;
 
+type TaskQueryRow = Omit<TaskRow, "assignee"> &
+  Readonly<{
+    assigneeId: string | null;
+    assigneeName: string | null;
+  }>;
+
+type DatabaseTransaction = Parameters<Parameters<DatabaseConnection["db"]["transaction"]>[0]>[0];
+
 type TaskCursor = Readonly<{
   createdAt: Date;
   id: string;
@@ -69,6 +86,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 function toTaskSummary(row: TaskRow, projectKey: string) {
   return {
+    assignee: row.assignee,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     dueDate: row.dueDate,
@@ -81,6 +99,14 @@ function toTaskSummary(row: TaskRow, projectKey: string) {
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     workspaceId: row.workspaceId,
+  };
+}
+
+function toTaskRow(row: TaskQueryRow): TaskRow {
+  return {
+    ...row,
+    assignee:
+      row.assigneeId && row.assigneeName ? { id: row.assigneeId, name: row.assigneeName } : null,
   };
 }
 
@@ -118,7 +144,12 @@ export class TaskService {
     projectId: string,
     input: Readonly<{ archived?: boolean; cursor?: string; limit?: number }>,
   ) {
-    const { project } = await this.requireProject(userId, workspaceId, projectId, "project:view");
+    const { actor, project } = await this.requireProject(
+      userId,
+      workspaceId,
+      projectId,
+      "project:view",
+    );
     const limit = input.limit ?? 50;
     const cursor = input.cursor ? decodeCursor(input.cursor) : null;
     const archivedCondition = input.archived
@@ -130,9 +161,15 @@ export class TaskService {
           and(eq(tasks.createdAt, cursor.createdAt), lt(tasks.id, cursor.id)),
         )
       : undefined;
+    const visibilityCondition =
+      project.taskBoardVisibility === "private"
+        ? eq(tasks.assigneeMembershipId, actor.id)
+        : undefined;
 
     const rows = await this.database.db
       .select({
+        assigneeId: memberships.id,
+        assigneeName: users.name,
         archivedAt: tasks.archivedAt,
         canceledAt: tasks.canceledAt,
         completedAt: tasks.completedAt,
@@ -158,18 +195,27 @@ export class TaskService {
         workflowStatuses,
         and(eq(workflowStatuses.id, tasks.statusId), eq(workflowStatuses.workspaceId, workspaceId)),
       )
+      .leftJoin(
+        memberships,
+        and(
+          eq(memberships.id, tasks.assigneeMembershipId),
+          eq(memberships.workspaceId, workspaceId),
+        ),
+      )
+      .leftJoin(users, eq(users.id, memberships.userId))
       .where(
         and(
           eq(tasks.workspaceId, workspaceId),
           eq(tasks.projectId, projectId),
           archivedCondition,
           cursorCondition,
+          visibilityCondition,
         ),
       )
       .orderBy(desc(tasks.createdAt), desc(tasks.id))
       .limit(limit + 1);
 
-    const page = rows.slice(0, limit);
+    const page = rows.slice(0, limit).map(toTaskRow);
     const lastTask = page.at(-1);
     return {
       nextCursor: rows.length > limit && lastTask ? encodeCursor(lastTask) : null,
@@ -177,11 +223,52 @@ export class TaskService {
     };
   }
 
+  async listTaskAssignees(userId: string, workspaceId: string, projectId: string) {
+    const { project } = await this.requireProject(
+      userId,
+      workspaceId,
+      projectId,
+      "project:contribute",
+    );
+    const rows = await this.database.db
+      .select({
+        explicitRole: projectAccess.role,
+        id: memberships.id,
+        name: users.name,
+        workspaceRole: memberships.role,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .leftJoin(
+        projectAccess,
+        and(
+          eq(projectAccess.projectId, projectId),
+          eq(projectAccess.workspaceId, workspaceId),
+          eq(projectAccess.membershipId, memberships.id),
+        ),
+      )
+      .where(and(eq(memberships.workspaceId, workspaceId), isNull(memberships.deactivatedAt)))
+      .orderBy(asc(users.name), asc(memberships.id));
+
+    return rows
+      .filter((candidate) =>
+        canAccessProject(
+          {
+            explicitRole: candidate.explicitRole,
+            visibility: project.visibility,
+            workspaceRole: candidate.workspaceRole,
+          },
+          "project:view",
+        ),
+      )
+      .map(({ id, name }) => ({ id, name }));
+  }
+
   async createTask(
     userId: string,
     workspaceId: string,
     projectId: string,
-    input: Readonly<{ dueDate?: string | null; title: string }>,
+    input: Readonly<{ assigneeId?: string | null; dueDate?: string | null; title: string }>,
   ) {
     const { actor, project } = await this.requireProject(
       userId,
@@ -194,6 +281,13 @@ export class TaskService {
     const dueDate = input.dueDate ?? null;
 
     return this.database.db.transaction(async (transaction) => {
+      const assignee = await this.loadEligibleAssignee(
+        transaction,
+        workspaceId,
+        projectId,
+        project.visibility,
+        input.assigneeId ?? null,
+      );
       const defaultStatusRows = await transaction
         .select({
           category: workflowStatuses.category,
@@ -239,6 +333,7 @@ export class TaskService {
 
       const now = new Date();
       const task: TaskRow = {
+        assignee,
         archivedAt: null,
         canceledAt: null,
         completedAt: null,
@@ -255,6 +350,7 @@ export class TaskService {
         workspaceId,
       };
       await transaction.insert(tasks).values({
+        assigneeMembershipId: task.assignee?.id ?? null,
         archivedAt: task.archivedAt,
         canceledAt: task.canceledAt,
         completedAt: task.completedAt,
@@ -275,7 +371,10 @@ export class TaskService {
         actorMembershipId: actor.id,
         id: uuidv7(),
         occurredAt: now,
-        payload: { statusId: status.id },
+        payload: {
+          ...(task.assignee ? { assigneeMembershipId: task.assignee.id } : {}),
+          statusId: status.id,
+        },
         schemaVersion: 1,
         taskId: task.id,
         type: "task-created",
@@ -291,16 +390,29 @@ export class TaskService {
     workspaceId: string,
     projectId: string,
     taskId: string,
-    input: Readonly<{ dueDate?: string | null; title?: string; version: number }>,
+    input: Readonly<{
+      assigneeId?: string | null;
+      dueDate?: string | null;
+      title?: string;
+      version: number;
+    }>,
   ) {
-    const { project } = await this.requireProject(
+    const { actor, project } = await this.requireProject(
       userId,
       workspaceId,
       projectId,
       "project:contribute",
     );
-    if (input.title === undefined && input.dueDate === undefined) {
-      throw new ApiProblem(400, "task_update_empty", "A title or due date change is required");
+    if (
+      input.title === undefined &&
+      input.dueDate === undefined &&
+      input.assigneeId === undefined
+    ) {
+      throw new ApiProblem(
+        400,
+        "task_update_empty",
+        "A title, due date, or assignee change is required",
+      );
     }
     if (input.title !== undefined) {
       this.validateTaskInput(input.title, input.dueDate);
@@ -314,12 +426,28 @@ export class TaskService {
     return this.database.db.transaction(async (transaction) => {
       const current = await this.loadTaskForUpdate(transaction, workspaceId, projectId, taskId);
       this.requireMutableTask(current, input.version);
+      const assignee =
+        input.assigneeId === undefined
+          ? current.assignee
+          : await this.loadEligibleAssignee(
+              transaction,
+              workspaceId,
+              projectId,
+              project.visibility,
+              input.assigneeId,
+            );
       const now = new Date();
       const title = input.title === undefined ? current.title : normalizeTaskTitle(input.title);
       const dueDate = input.dueDate === undefined ? current.dueDate : input.dueDate;
       const updatedRows = await transaction
         .update(tasks)
-        .set({ dueDate, title, updatedAt: now, version: current.version + 1 })
+        .set({
+          assigneeMembershipId: assignee?.id ?? null,
+          dueDate,
+          title,
+          updatedAt: now,
+          version: current.version + 1,
+        })
         .where(
           and(
             eq(tasks.id, taskId),
@@ -332,8 +460,23 @@ export class TaskService {
       if (updatedRows.length !== 1) {
         throw this.versionConflict();
       }
+      if (current.assignee?.id !== assignee?.id) {
+        await transaction.insert(taskActivities).values({
+          actorMembershipId: actor.id,
+          id: uuidv7(),
+          occurredAt: now,
+          payload: {
+            fromAssigneeMembershipId: current.assignee?.id ?? null,
+            toAssigneeMembershipId: assignee?.id ?? null,
+          },
+          schemaVersion: 1,
+          taskId,
+          type: assignee ? "task-assigned" : "task-unassigned",
+          workspaceId,
+        });
+      }
       return toTaskSummary(
-        { ...current, dueDate, title, updatedAt: now, version: current.version + 1 },
+        { ...current, assignee, dueDate, title, updatedAt: now, version: current.version + 1 },
         project.key,
       );
     });
@@ -543,13 +686,15 @@ export class TaskService {
   }
 
   private async loadTaskForUpdate(
-    transaction: Parameters<Parameters<DatabaseConnection["db"]["transaction"]>[0]>[0],
+    transaction: DatabaseTransaction,
     workspaceId: string,
     projectId: string,
     taskId: string,
   ): Promise<TaskRow> {
     const rows = await transaction
       .select({
+        assigneeId: memberships.id,
+        assigneeName: users.name,
         archivedAt: tasks.archivedAt,
         canceledAt: tasks.canceledAt,
         completedAt: tasks.completedAt,
@@ -575,6 +720,14 @@ export class TaskService {
         workflowStatuses,
         and(eq(workflowStatuses.id, tasks.statusId), eq(workflowStatuses.workspaceId, workspaceId)),
       )
+      .leftJoin(
+        memberships,
+        and(
+          eq(memberships.id, tasks.assigneeMembershipId),
+          eq(memberships.workspaceId, workspaceId),
+        ),
+      )
+      .leftJoin(users, eq(users.id, memberships.userId))
       .where(
         and(
           eq(tasks.id, taskId),
@@ -583,12 +736,68 @@ export class TaskService {
         ),
       )
       .limit(1)
-      .for("update");
+      .for("update", { of: tasks });
     const task = rows[0];
     if (!task) {
       throw new ApiProblem(404, "task_not_found", "Task was not found");
     }
-    return task;
+    return toTaskRow(task);
+  }
+
+  private async loadEligibleAssignee(
+    transaction: DatabaseTransaction,
+    workspaceId: string,
+    projectId: string,
+    projectVisibility: ProjectVisibility,
+    assigneeId: string | null,
+  ): Promise<TaskAssigneeRow | null> {
+    if (assigneeId === null) return null;
+
+    const rows = await transaction
+      .select({
+        explicitRole: projectAccess.role,
+        id: memberships.id,
+        name: users.name,
+        workspaceRole: memberships.role,
+      })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .leftJoin(
+        projectAccess,
+        and(
+          eq(projectAccess.projectId, projectId),
+          eq(projectAccess.workspaceId, workspaceId),
+          eq(projectAccess.membershipId, memberships.id),
+        ),
+      )
+      .where(
+        and(
+          eq(memberships.id, assigneeId),
+          eq(memberships.workspaceId, workspaceId),
+          isNull(memberships.deactivatedAt),
+        ),
+      )
+      .limit(1);
+    const assignee = rows[0];
+    if (
+      !assignee ||
+      !canAccessProject(
+        {
+          explicitRole: assignee.explicitRole,
+          visibility: projectVisibility,
+          workspaceRole: assignee.workspaceRole,
+        },
+        "project:view",
+      )
+    ) {
+      throw new ApiProblem(
+        400,
+        "invalid_task_assignee",
+        "The assignee must be an active member who can access this project",
+      );
+    }
+
+    return { id: assignee.id, name: assignee.name };
   }
 
   private async requireWorkspaceActor(
@@ -624,9 +833,11 @@ export class TaskService {
       .select({
         explicitRole: projectAccess.role,
         key: projects.projectKey,
+        taskBoardVisibility: workspaces.taskBoardVisibility,
         visibility: projects.visibility,
       })
       .from(projects)
+      .innerJoin(workspaces, eq(workspaces.id, projects.workspaceId))
       .leftJoin(
         projectAccess,
         and(

@@ -20,7 +20,7 @@ import {
   updateProject,
   updateWorkflow,
 } from "../api/client.js";
-import { TaskList } from "../tasks/TaskList.js";
+import { TaskBoard } from "../tasks/TaskList.js";
 
 type ProjectsProps = Readonly<{
   errorMessage: (error: unknown) => string;
@@ -310,7 +310,7 @@ function ProjectDetail({
       </div>
 
       {tab === "tasks" && (
-        <TaskList errorMessage={errorMessage} project={project} workspace={workspace} />
+        <TaskBoard errorMessage={errorMessage} project={project} workspace={workspace} />
       )}
       {tab === "workflow" && (
         <WorkflowEditor errorMessage={errorMessage} project={project} workspace={workspace} />

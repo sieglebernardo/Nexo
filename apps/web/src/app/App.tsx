@@ -1,4 +1,9 @@
-import type { WorkspaceMember, WorkspaceRole, WorkspaceSummary } from "@nexo/contracts";
+import type {
+  TaskBoardVisibility,
+  WorkspaceMember,
+  WorkspaceRole,
+  WorkspaceSummary,
+} from "@nexo/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 
@@ -9,8 +14,10 @@ import {
   deactivateWorkspaceMember,
   getWorkspaceInvitations,
   getWorkspaceMembers,
+  getWorkspaceSettings,
   getWorkspaces,
   inviteWorkspaceMember,
+  updateWorkspaceSettings,
 } from "../api/client.js";
 import { authClient } from "../auth/client.js";
 import { Projects } from "../projects/Projects.js";
@@ -330,6 +337,102 @@ function WorkspaceHome({ workspace }: Readonly<{ workspace: WorkspaceSummary }>)
   );
 }
 
+function WorkspaceSettings({ workspace }: Readonly<{ workspace: WorkspaceSummary }>) {
+  const queryClient = useQueryClient();
+  const queryKey = ["workspaces", workspace.id, "settings"] as const;
+  const [taskBoardVisibility, setTaskBoardVisibility] =
+    useState<TaskBoardVisibility>("collaborative");
+  const settings = useQuery({
+    queryFn: ({ signal }) => getWorkspaceSettings(workspace.id, signal),
+    queryKey,
+  });
+  useEffect(() => {
+    if (settings.data) setTaskBoardVisibility(settings.data.taskBoardVisibility);
+  }, [settings.data]);
+  const save = useMutation({
+    mutationFn: () => updateWorkspaceSettings(workspace.id, { taskBoardVisibility }),
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(queryKey, updated);
+      await queryClient.invalidateQueries({
+        queryKey: ["workspaces", workspace.id, "projects"],
+      });
+    },
+  });
+
+  return (
+    <section className="content content-stack">
+      <article className="panel-card workspace-settings-card">
+        <div>
+          <span className="eyebrow">Workspace settings</span>
+          <h2>Task Board Visibility</h2>
+          <p>
+            Choose whether project boards show everyone’s tasks or only the tasks assigned to the
+            person viewing the board. Unassigned tasks are hidden in Private mode.
+          </p>
+        </div>
+
+        {settings.isPending && <div className="table-state">Loading settings…</div>}
+        {settings.isError && (
+          <div className="notice is-error">
+            {errorMessage(settings.error)}
+            <button className="text-button" onClick={() => settings.refetch()} type="button">
+              Try again
+            </button>
+          </div>
+        )}
+        {settings.data && (
+          <form
+            className="visibility-settings-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate();
+            }}
+          >
+            <fieldset>
+              <legend>Board mode</legend>
+              <label className={taskBoardVisibility === "collaborative" ? "is-selected" : ""}>
+                <input
+                  checked={taskBoardVisibility === "collaborative"}
+                  name="task-board-visibility"
+                  onChange={() => setTaskBoardVisibility("collaborative")}
+                  type="radio"
+                  value="collaborative"
+                />
+                <span>
+                  <strong>Collaborative</strong>
+                  <small>Every project member sees all tasks they can access.</small>
+                </span>
+              </label>
+              <label className={taskBoardVisibility === "private" ? "is-selected" : ""}>
+                <input
+                  checked={taskBoardVisibility === "private"}
+                  name="task-board-visibility"
+                  onChange={() => setTaskBoardVisibility("private")}
+                  type="radio"
+                  value="private"
+                />
+                <span>
+                  <strong>Private</strong>
+                  <small>Each person sees only tasks assigned to their membership.</small>
+                </span>
+              </label>
+            </fieldset>
+            <button
+              className="primary-button fit-button"
+              disabled={save.isPending || taskBoardVisibility === settings.data.taskBoardVisibility}
+              type="submit"
+            >
+              {save.isPending ? "Saving…" : "Save visibility"}
+            </button>
+          </form>
+        )}
+        {save.isError && <div className="notice is-error">{errorMessage(save.error)}</div>}
+        {save.isSuccess && <div className="notice is-success">Board visibility saved.</div>}
+      </article>
+    </section>
+  );
+}
+
 function MemberRow({
   canDeactivate,
   currentMembershipId,
@@ -548,7 +651,7 @@ function Members({ workspace }: Readonly<{ workspace: WorkspaceSummary }>) {
 function ApplicationShell({ workspaces }: Readonly<{ workspaces: WorkspaceSummary[] }>) {
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const [view, setView] = useState<"home" | "members" | "projects">("home");
+  const [view, setView] = useState<"home" | "members" | "projects" | "settings">("home");
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(
     () => localStorage.getItem("nexo.active-workspace") ?? workspaces[0]?.id,
   );
@@ -623,6 +726,16 @@ function ApplicationShell({ workspaces }: Readonly<{ workspaces: WorkspaceSummar
             <span className="nav-glyph" aria-hidden="true" />
             Projects
           </button>
+          {workspace.role === "owner" && (
+            <button
+              className={view === "settings" ? "nav-item is-active" : "nav-item"}
+              onClick={() => setView("settings")}
+              type="button"
+            >
+              <span className="nav-glyph settings-glyph" aria-hidden="true" />
+              Settings
+            </button>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -657,7 +770,9 @@ function ApplicationShell({ workspaces }: Readonly<{ workspaces: WorkspaceSummar
                 ? "Workspace home"
                 : view === "members"
                   ? "People & access"
-                  : "Projects & workflows"}
+                  : view === "projects"
+                    ? "Projects & workflows"
+                    : "Workspace settings"}
             </h1>
           </div>
           <div className="secure-context">
@@ -668,6 +783,9 @@ function ApplicationShell({ workspaces }: Readonly<{ workspaces: WorkspaceSummar
         {view === "home" && <WorkspaceHome workspace={workspace} />}
         {view === "members" && <Members workspace={workspace} />}
         {view === "projects" && <Projects errorMessage={errorMessage} workspace={workspace} />}
+        {view === "settings" && workspace.role === "owner" && (
+          <WorkspaceSettings workspace={workspace} />
+        )}
       </main>
     </div>
   );

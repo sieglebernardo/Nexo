@@ -12,7 +12,19 @@ export const TaskListStatusSchema = Type.Object({
 });
 export type TaskListStatus = Static<typeof TaskListStatusSchema>;
 
+export const TaskAssigneeSchema = Type.Object({
+  id: Type.String({ format: "uuid" }),
+  name: Type.String(),
+});
+export type TaskAssignee = Static<typeof TaskAssigneeSchema>;
+
+export const TaskAssigneeListResponseSchema = Type.Object({
+  assignees: Type.Array(TaskAssigneeSchema),
+});
+export type TaskAssigneeListResponse = Static<typeof TaskAssigneeListResponseSchema>;
+
 export const TaskSummarySchema = Type.Object({
+  assignee: Type.Union([TaskAssigneeSchema, Type.Null()]),
   archivedAt: Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
   createdAt: Type.String({ format: "date-time" }),
   dueDate: Type.Union([DateOnlySchema, Type.Null()]),
@@ -46,6 +58,7 @@ export type TaskListResponse = Static<typeof TaskListResponseSchema>;
 
 export const CreateTaskBodySchema = Type.Object(
   {
+    assigneeId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
     dueDate: Type.Optional(Type.Union([DateOnlySchema, Type.Null()])),
     title: Type.String({ maxLength: 240, minLength: 1 }),
   },
@@ -55,6 +68,7 @@ export type CreateTaskBody = Static<typeof CreateTaskBodySchema>;
 
 export const UpdateTaskBodySchema = Type.Object(
   {
+    assigneeId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
     dueDate: Type.Optional(Type.Union([DateOnlySchema, Type.Null()])),
     title: Type.Optional(Type.String({ maxLength: 240, minLength: 1 })),
     version: Type.Integer({ minimum: 1 }),

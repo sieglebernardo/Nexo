@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const workspaceRole = pgEnum("workspace_role", ["owner", "admin", "member", "guest"]);
+export const taskBoardVisibility = pgEnum("task_board_visibility", ["collaborative", "private"]);
 export const projectVisibility = pgEnum("project_visibility", ["workspace", "private"]);
 export const projectRole = pgEnum("project_role", ["lead", "contributor", "viewer"]);
 export const workflowStatusCategory = pgEnum("workflow_status_category", [
@@ -31,6 +32,8 @@ export const taskActivityType = pgEnum("task_activity_type", [
   "task-completed",
   "task-reopened",
   "task-canceled",
+  "task-assigned",
+  "task-unassigned",
 ]);
 
 export const users = pgTable(
@@ -111,6 +114,9 @@ export const authVerifications = pgTable(
 export const workspaces = pgTable("workspaces", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
+  taskBoardVisibility: taskBoardVisibility("task_board_visibility")
+    .notNull()
+    .default("collaborative"),
   timezone: text("timezone").notNull(),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
@@ -289,6 +295,7 @@ export const tasks = pgTable(
     taskNumber: integer("task_number").notNull(),
     title: text("title").notNull(),
     statusId: uuid("status_id").notNull(),
+    assigneeMembershipId: uuid("assignee_membership_id"),
     dueDate: date("due_date", { mode: "string" }),
     archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
     firstStartedAt: timestamp("first_started_at", { mode: "date", withTimezone: true }),
@@ -310,6 +317,14 @@ export const tasks = pgTable(
       table.id,
     ),
     index("tasks_status_idx").on(table.workspaceId, table.statusId),
+    index("tasks_project_assignee_active_idx").on(
+      table.workspaceId,
+      table.projectId,
+      table.assigneeMembershipId,
+      table.archivedAt,
+      table.createdAt,
+      table.id,
+    ),
   ],
 );
 
