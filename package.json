@@ -18,14 +18,18 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "db:migrate": "npm run db:migrate -w @nexo/database",
-    "dev": "concurrently --names api,web --prefix-colors blue,magenta \"npm run dev -w @nexo/api\" \"npm run dev -w @nexo/web\"",
+    "dev": "npm run db:migrate && concurrently --names api,web --prefix-colors blue,magenta \"npm run dev -w @nexo/api\" \"npm run dev -w @nexo/web\"",
     "test": "vitest run",
+    "test:e2e": "npm run db:migrate && playwright test",
+    "test:e2e:headed": "npm run db:migrate && playwright test --headed",
     "test:watch": "vitest",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
     "@electric-sql/pglite": "0.5.5",
+    "@playwright/test": "1.62.1",
     "@types/node": "24.13.3",
     "concurrently": "9.2.4",
     "tsup": "8.5.1",
