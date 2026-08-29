@@ -1,0 +1,30 @@
+{
+  "name": "@nexo/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/server.ts --format esm --clean --sourcemap",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.3.0",
+    "@fastify/helmet": "13.1.0",
+    "@fastify/rate-limit": "11.2.0",
+    "@fastify/type-provider-typebox": "6.1.0",
+    "@nexo/contracts": "*",
+    "@nexo/database": "*",
+    "@nexo/domain": "*",
+    "better-auth": "1.6.29",
+    "dotenv": "17.3.1",
+    "fastify": "5.12.0",
+    "nodemailer": "9.0.5",
+    "uuid": "14.0.1"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "7.0.11",
+    "tsx": "4.23.12"
+  }
+}
