@@ -14,7 +14,7 @@ This repository is a greenfield modular monolith. The canonical product contract
 
 ```sh
 cp .env.example .env
-docker compose up -d postgres mailpit
+docker compose up -d postgres mailpit redis
 npm install
 npm run db:migrate
 npm run dev
@@ -50,6 +50,12 @@ npm ci
 npm run build
 npm run start -w @nexo/api
 ```
+
+For Railway, create separate API and web services with `/` as the root directory so both services
+can access the shared workspace packages. Use `npm run build:api` / `npm run start:api` for the API
+and `npm run build:web` / `npm run start:web` for the web service. Set `VITE_API_BASE_URL` on the
+web service before its build. The web server listens on Railway's `PORT` and includes SPA fallback
+routing for `/login`, `/signup`, and `/admin`.
 
 Apply database migrations as a separate deployment step before serving traffic. Do not expose
 PostgreSQL, Redis, or Mailpit to the public network; the ports in `compose.yaml` are localhost-only

@@ -15,7 +15,9 @@
   ],
   "scripts": {
     "build": "npm run build:packages && npm run build -w @nexo/api && npm run build -w @nexo/web",
+    "build:api": "npm run build:packages && npm run build -w @nexo/api",
     "build:packages": "npm run build -w @nexo/contracts && npm run build -w @nexo/database && npm run build -w @nexo/domain",
+    "build:web": "npm run build:packages && npm run build -w @nexo/web",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "db:migrate": "npm run db:migrate -w @nexo/database",
@@ -23,6 +25,8 @@
     "test": "npm run build:packages && vitest run",
     "test:e2e": "npm run build:packages && npm run db:migrate && playwright test",
     "test:e2e:headed": "npm run build:packages && npm run db:migrate && playwright test --headed",
+    "start:api": "npm run start -w @nexo/api",
+    "start:web": "npm run start -w @nexo/web",
     "test:watch": "vitest",
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json"
