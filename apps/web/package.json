@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "npm run build -w @nexo/contracts",
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
