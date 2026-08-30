@@ -20,6 +20,7 @@ const getAndDeleteScript = `
 export function createRedisClient(url: string): Redis {
   return new Redis(url, {
     connectTimeout: 5_000,
+    family: 0,
     lazyConnect: true,
     maxRetriesPerRequest: 1,
   });
