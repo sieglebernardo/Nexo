@@ -27,6 +27,10 @@ describe("API configuration", () => {
     });
   });
 
+  it("uses the hosting provider port before the local API override", () => {
+    expect(readApiConfig({ ...baseEnvironment, API_PORT: "3000", PORT: "4311" }).port).toBe(4311);
+  });
+
   it("rejects wildcard or path-based credentialed CORS origins", () => {
     expect(() => readApiConfig({ ...baseEnvironment, WEB_ORIGIN: "*" })).toThrow(
       "WEB_ORIGIN must be a valid absolute URL",

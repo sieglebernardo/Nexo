@@ -32,7 +32,7 @@ function readExactOrigin(value: string, variableName: string): string {
 }
 
 export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): ApiConfig {
-  const port = Number.parseInt(environment.API_PORT ?? "3000", 10);
+  const port = Number.parseInt(environment.PORT ?? environment.API_PORT ?? "3000", 10);
   const smtpPort = Number.parseInt(environment.SMTP_PORT ?? "1025", 10);
   const invitationTtlHours = Number.parseInt(environment.INVITATION_TTL_HOURS ?? "168", 10);
   const nodeEnvironment = environment.NODE_ENV ?? "development";
@@ -48,7 +48,7 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
   );
 
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error("API_PORT must be an integer between 1 and 65535");
+    throw new Error("PORT or API_PORT must be an integer between 1 and 65535");
   }
   if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65_535) {
     throw new Error("SMTP_PORT must be an integer between 1 and 65535");
