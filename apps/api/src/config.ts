@@ -31,6 +31,15 @@ function readExactOrigin(value: string, variableName: string): string {
   return value;
 }
 
+function isRailwayPrivateUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname;
+    return hostname === "railway.internal" || hostname.endsWith(".railway.internal");
+  } catch {
+    return false;
+  }
+}
+
 export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): ApiConfig {
   const port = Number.parseInt(environment.PORT ?? environment.API_PORT ?? "3000", 10);
   const smtpPort = Number.parseInt(environment.SMTP_PORT ?? "1025", 10);
@@ -81,8 +90,13 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
     if (!environment.DATABASE_URL) {
       throw new Error("DATABASE_URL is required in production");
     }
-    if (!/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)) {
-      throw new Error("DATABASE_URL must require TLS in production via sslmode");
+    if (
+      !isRailwayPrivateUrl(databaseUrl) &&
+      !/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)
+    ) {
+      throw new Error(
+        "DATABASE_URL must require TLS in production via sslmode or use Railway private networking",
+      );
     }
     if (!environment.EMAIL_FROM) {
       throw new Error("EMAIL_FROM is required in production");
@@ -96,8 +110,8 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
     if (!redisUrl) {
       throw new Error("REDIS_URL is required in production for shared rate limiting");
     }
-    if (!redisUrl.startsWith("rediss://")) {
-      throw new Error("REDIS_URL must use rediss:// in production");
+    if (!redisUrl.startsWith("rediss://") && !isRailwayPrivateUrl(redisUrl)) {
+      throw new Error("REDIS_URL must use rediss:// or Railway private networking in production");
     }
   }
 

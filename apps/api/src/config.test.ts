@@ -60,6 +60,19 @@ describe("API configuration", () => {
     );
   });
 
+  it("accepts Railway private database and Redis references", () => {
+    expect(
+      readApiConfig({
+        ...productionEnvironment,
+        DATABASE_URL: "postgresql://postgres:secret@postgres.railway.internal:5432/railway",
+        REDIS_URL: "redis://default:secret@redis.railway.internal:6379",
+      }),
+    ).toMatchObject({
+      databaseUrl: "postgresql://postgres:secret@postgres.railway.internal:5432/railway",
+      redisUrl: "redis://default:secret@redis.railway.internal:6379",
+    });
+  });
+
   it("parses explicitly trusted reverse-proxy networks", () => {
     expect(
       readApiConfig({ ...productionEnvironment, TRUST_PROXY_CIDRS: "10.0.0.0/8, 192.0.2.10" })
