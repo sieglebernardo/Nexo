@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "npm run build -w @nexo/contracts && npm run build -w @nexo/database && npm run build -w @nexo/domain",
     "build": "tsup --config tsup.config.ts",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",

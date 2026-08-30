@@ -14,10 +14,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:packages && npm run build -w @nexo/api && npm run build -w @nexo/web",
-    "build:api": "npm run build:packages && npm run build -w @nexo/api",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "npm run build -w @nexo/api",
     "build:packages": "npm run build -w @nexo/contracts && npm run build -w @nexo/database && npm run build -w @nexo/domain",
-    "build:web": "npm run build:packages && npm run build -w @nexo/web",
+    "build:web": "npm run build -w @nexo/web",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "db:migrate": "npm run db:migrate -w @nexo/database",
