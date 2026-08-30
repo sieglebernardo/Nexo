@@ -14,14 +14,15 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build:packages && npm run build -w @nexo/api && npm run build -w @nexo/web",
+    "build:packages": "npm run build -w @nexo/contracts && npm run build -w @nexo/database && npm run build -w @nexo/domain",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "db:migrate": "npm run db:migrate -w @nexo/database",
-    "dev": "npm run db:migrate && concurrently --names api,web --prefix-colors blue,magenta \"npm run dev -w @nexo/api\" \"npm run dev -w @nexo/web\"",
-    "test": "vitest run",
-    "test:e2e": "npm run db:migrate && playwright test",
-    "test:e2e:headed": "npm run db:migrate && playwright test --headed",
+    "dev": "npm run build:packages && npm run db:migrate && concurrently --names api,web --prefix-colors blue,magenta \"npm run dev -w @nexo/api\" \"npm run dev -w @nexo/web\"",
+    "test": "npm run build:packages && vitest run",
+    "test:e2e": "npm run build:packages && npm run db:migrate && playwright test",
+    "test:e2e:headed": "npm run build:packages && npm run db:migrate && playwright test --headed",
     "test:watch": "vitest",
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
     "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json"

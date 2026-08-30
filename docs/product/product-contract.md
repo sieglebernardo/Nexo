@@ -12,7 +12,7 @@ The product term is **Task**. Nexo must remain useful without engineering-specif
 
 | Decision | V1 default |
 |---|---|
-| Customer boundary | One Workspace is one tenant and paying account. No Organization entity. |
+| Customer boundary | Company is the platform isolation and administration boundary; Workspace remains the ordinary collaboration and authorization boundary. |
 | Navigation hierarchy | Workspace → Team → Project. A General team is created automatically. |
 | Project visibility | Workspace-visible by default; private is optional. |
 | Guests | Access only explicitly granted projects as Viewer or Contributor. |
@@ -32,7 +32,7 @@ The product term is **Task**. Nexo must remain useful without engineering-specif
 
 ## V1
 
-- Authentication, workspace creation, invitations, and workspace roles.
+- Authentication, company/workspace creation, invitations, workspace roles, and protected platform administration.
 - Lightweight teams and project access roles.
 - Projects with configurable workflow statuses and stable categories.
 - Task creation, editing, transition, assignment, priority, labels, due date, archive, trash, and restore.

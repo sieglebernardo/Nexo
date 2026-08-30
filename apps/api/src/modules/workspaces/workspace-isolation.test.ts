@@ -66,6 +66,7 @@ describe("workspace tenant isolation", () => {
       "0002_project_workflow.sql",
       "0003_task_list.sql",
       "0004_kanban_visibility.sql",
+      "0005_companies_platform_admin.sql",
     ]) {
       const migration = await readFile(
         new URL(`../../../../../packages/database/migrations/${migrationName}`, import.meta.url),
@@ -119,13 +120,13 @@ describe("workspace tenant isolation", () => {
     const aliceWorkspaceResponse = await app.inject({
       headers: { "x-test-user": "alice" },
       method: "POST",
-      payload: { name: "Alice Studio", timezone: "America/Sao_Paulo" },
+      payload: { companyName: "Alice Co", name: "Alice Studio", timezone: "America/Sao_Paulo" },
       url: "/api/v1/workspaces",
     });
     const bobWorkspaceResponse = await app.inject({
       headers: { "x-test-user": "bob" },
       method: "POST",
-      payload: { name: "Bob Private", timezone: "UTC" },
+      payload: { companyName: "Bob Co", name: "Bob Private", timezone: "UTC" },
       url: "/api/v1/workspaces",
     });
     expect(aliceWorkspaceResponse.statusCode).toBe(201);
@@ -155,7 +156,7 @@ describe("workspace tenant isolation", () => {
     expect(inviteResponse.statusCode).toBe(201);
     expect(emailDelivery.invitations).toHaveLength(1);
     const invitationUrl = new URL(emailDelivery.invitations[0]?.url ?? "");
-    const token = invitationUrl.searchParams.get("invitation");
+    const token = new URLSearchParams(invitationUrl.hash.slice(1)).get("invitation");
     expect(token).toBeTruthy();
 
     const acceptResponse = await app.inject({
@@ -205,7 +206,7 @@ describe("workspace tenant isolation", () => {
     const workspaceResponse = await app.inject({
       headers: { "x-test-user": "alice" },
       method: "POST",
-      payload: { name: "Email Bound", timezone: "UTC" },
+      payload: { companyName: "Email Co", name: "Email Bound", timezone: "UTC" },
       url: "/api/v1/workspaces",
     });
     const workspace = workspaceResponse.json<{ id: string }>();
@@ -216,7 +217,7 @@ describe("workspace tenant isolation", () => {
       url: `/api/v1/workspaces/${workspace.id}/invitations`,
     });
     const invitationUrl = new URL(emailDelivery.invitations[0]?.url ?? "");
-    const token = invitationUrl.searchParams.get("invitation");
+    const token = new URLSearchParams(invitationUrl.hash.slice(1)).get("invitation");
 
     const wrongRecipient = await app.inject({
       headers: { "x-test-user": "alice" },
@@ -232,13 +233,13 @@ describe("workspace tenant isolation", () => {
     const aliceWorkspaceResponse = await app.inject({
       headers: { "x-test-user": "alice" },
       method: "POST",
-      payload: { name: "Board Settings", timezone: "UTC" },
+      payload: { companyName: "Board Co", name: "Board Settings", timezone: "UTC" },
       url: "/api/v1/workspaces",
     });
     const bobWorkspaceResponse = await app.inject({
       headers: { "x-test-user": "bob" },
       method: "POST",
-      payload: { name: "Bob Board", timezone: "UTC" },
+      payload: { companyName: "Bob Board Co", name: "Bob Board", timezone: "UTC" },
       url: "/api/v1/workspaces",
     });
     const aliceWorkspace = aliceWorkspaceResponse.json<{ id: string }>();
@@ -269,7 +270,7 @@ describe("workspace tenant isolation", () => {
     await app.inject({
       headers: { "x-test-user": "bob" },
       method: "POST",
-      payload: { token: invitationUrl.searchParams.get("invitation") },
+      payload: { token: new URLSearchParams(invitationUrl.hash.slice(1)).get("invitation") },
       url: "/api/v1/invitations/accept",
     });
 

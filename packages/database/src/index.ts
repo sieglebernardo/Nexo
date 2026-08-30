@@ -2,13 +2,18 @@ export { createDatabase, type DatabaseConnection } from "./postgres.js";
 export * as schema from "./schema/index.js";
 export {
   type AuthUser,
+  administrativeAuditLogs,
   authAccounts,
   authSessions,
   authVerifications,
+  type Company,
+  companies,
+  companyMemberships,
   invitations,
   type Membership,
   memberships,
   type Project,
+  platformAdmins,
   projectAccess,
   projectRole,
   projects,

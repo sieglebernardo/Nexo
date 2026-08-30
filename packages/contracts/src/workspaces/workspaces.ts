@@ -1,8 +1,16 @@
 import { type Static, Type } from "@sinclair/typebox";
 
+// Keep the selectable values in the shared contract package so the web client
+// presents the same canonical IANA identifiers wherever workspace creation is rendered.
+export const WORKSPACE_TIMEZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
+export type WorkspaceTimezone = (typeof WORKSPACE_TIMEZONES)[number];
+
+// The API still accepts valid IANA aliases for compatibility with existing data and clients;
+// WorkspaceService performs the runtime IANA validation.
+export const WorkspaceTimezoneSchema = Type.String({ maxLength: 100, minLength: 1 });
+
 export const WorkspaceRoleSchema = Type.Union([
   Type.Literal("owner"),
-  Type.Literal("admin"),
   Type.Literal("member"),
   Type.Literal("guest"),
 ]);
@@ -48,7 +56,7 @@ export const WorkspaceSummarySchema = Type.Object({
   membershipId: Type.String({ format: "uuid" }),
   name: Type.String(),
   role: WorkspaceRoleSchema,
-  timezone: Type.String(),
+  timezone: WorkspaceTimezoneSchema,
 });
 
 export type WorkspaceSummary = Static<typeof WorkspaceSummarySchema>;
@@ -59,10 +67,14 @@ export const WorkspaceListResponseSchema = Type.Object({
 
 export type WorkspaceListResponse = Static<typeof WorkspaceListResponseSchema>;
 
-export const CreateWorkspaceBodySchema = Type.Object({
-  name: Type.String({ maxLength: 100, minLength: 1 }),
-  timezone: Type.String({ maxLength: 100, minLength: 1 }),
-});
+export const CreateWorkspaceBodySchema = Type.Object(
+  {
+    companyName: Type.String({ maxLength: 160, minLength: 1 }),
+    name: Type.String({ maxLength: 100, minLength: 1 }),
+    timezone: WorkspaceTimezoneSchema,
+  },
+  { additionalProperties: false },
+);
 
 export type CreateWorkspaceBody = Static<typeof CreateWorkspaceBodySchema>;
 
@@ -85,7 +97,7 @@ export type WorkspaceMembersResponse = Static<typeof WorkspaceMembersResponseSch
 
 export const CreateInvitationBodySchema = Type.Object({
   email: Type.String({ format: "email", maxLength: 320 }),
-  role: Type.Union([Type.Literal("admin"), Type.Literal("member"), Type.Literal("guest")]),
+  role: Type.Union([Type.Literal("member"), Type.Literal("guest")]),
 });
 
 export type CreateInvitationBody = Static<typeof CreateInvitationBodySchema>;

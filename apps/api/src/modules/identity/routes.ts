@@ -3,10 +3,14 @@ import type { FastifyInstance } from "fastify";
 
 import type { NexoAuth } from "./auth.js";
 
-export async function registerAuthRoutes(app: FastifyInstance, auth: NexoAuth): Promise<void> {
+export async function registerAuthRoutes(
+  app: FastifyInstance,
+  auth: NexoAuth,
+  authBaseUrl: string,
+): Promise<void> {
   app.route({
     handler: async (request, reply) => {
-      const url = new URL(request.url, `http://${request.headers.host ?? "localhost"}`);
+      const url = new URL(request.url, authBaseUrl);
       const headers = fromNodeHeaders(request.headers);
       headers.set("x-nexo-client-ip", request.ip);
       const body = request.body === undefined ? undefined : JSON.stringify(request.body);

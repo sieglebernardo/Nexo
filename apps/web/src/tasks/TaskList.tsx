@@ -25,6 +25,7 @@ import {
   transitionTask,
   updateTask,
 } from "../api/client.js";
+import { FieldLabel } from "../ui/FieldLabel.js";
 
 type TaskBoardProps = Readonly<{
   errorMessage: (error: unknown) => string;
@@ -507,6 +508,7 @@ export function TaskBoard({ errorMessage, project, workspace }: TaskBoardProps) 
         <fieldset className="task-view-toggle">
           <legend className="sr-only">Task archive visibility</legend>
           <button
+            aria-pressed={!archived}
             className={!archived ? "is-active" : ""}
             onClick={() => setArchived(false)}
             type="button"
@@ -514,6 +516,7 @@ export function TaskBoard({ errorMessage, project, workspace }: TaskBoardProps) 
             Active
           </button>
           <button
+            aria-pressed={archived}
             className={archived ? "is-active" : ""}
             onClick={() => setArchived(true)}
             type="button"
@@ -532,7 +535,7 @@ export function TaskBoard({ errorMessage, project, workspace }: TaskBoardProps) 
           }}
         >
           <label>
-            <span className="sr-only">Task title</span>
+            <FieldLabel required>Task title</FieldLabel>
             <input
               maxLength={240}
               onChange={(event) => setTitle(event.target.value)}
@@ -542,7 +545,7 @@ export function TaskBoard({ errorMessage, project, workspace }: TaskBoardProps) 
             />
           </label>
           <label>
-            <span className="sr-only">Assignee</span>
+            <FieldLabel>Assignee</FieldLabel>
             <select
               aria-label="New task assignee"
               onChange={(event) => setNewAssigneeId(event.target.value)}
@@ -557,7 +560,7 @@ export function TaskBoard({ errorMessage, project, workspace }: TaskBoardProps) 
             </select>
           </label>
           <label>
-            <span className="sr-only">Due date</span>
+            <FieldLabel>Due date</FieldLabel>
             <input
               aria-label="New task due date"
               onChange={(event) => setDueDate(event.target.value)}

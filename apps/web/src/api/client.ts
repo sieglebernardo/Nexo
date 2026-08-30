@@ -1,4 +1,7 @@
 import type {
+  AdminSession,
+  CompanyDetail,
+  CompanyListResponse,
   CreateInvitationBody,
   CreateProjectBody,
   CreateTaskBody,
@@ -73,6 +76,30 @@ export function getWorkspaces(signal?: AbortSignal): Promise<WorkspaceListRespon
 
 export function createWorkspace(input: CreateWorkspaceBody): Promise<WorkspaceSummary> {
   return apiRequest("/api/v1/workspaces", { body: JSON.stringify(input), method: "POST" });
+}
+
+export function getAdminSession(signal?: AbortSignal): Promise<AdminSession> {
+  return apiRequest("/api/v1/admin/session", signal ? { signal } : undefined);
+}
+
+export function getAdminCompanies(
+  input: Readonly<{ offset: number; search: string }>,
+  signal?: AbortSignal,
+): Promise<CompanyListResponse> {
+  const query = new URLSearchParams({ limit: "25", offset: String(input.offset) });
+  if (input.search) query.set("search", input.search);
+  return apiRequest(`/api/v1/admin/companies?${query}`, signal ? { signal } : undefined);
+}
+
+export function getAdminCompany(companyId: string, signal?: AbortSignal): Promise<CompanyDetail> {
+  return apiRequest(`/api/v1/admin/companies/${companyId}`, signal ? { signal } : undefined);
+}
+
+export function updateAdminCompany(companyId: string, name: string): Promise<CompanyDetail> {
+  return apiRequest(`/api/v1/admin/companies/${companyId}`, {
+    body: JSON.stringify({ name }),
+    method: "PATCH",
+  });
 }
 
 export function getWorkspaceSettings(

@@ -1,4 +1,4 @@
-export const workspaceRoles = ["owner", "admin", "member", "guest"] as const;
+export const workspaceRoles = ["owner", "member", "guest"] as const;
 
 export type WorkspaceRole = (typeof workspaceRoles)[number];
 
@@ -16,14 +16,6 @@ export type WorkspaceAction = (typeof workspaceActions)[number];
 
 const abilities: Readonly<Record<WorkspaceRole, ReadonlySet<WorkspaceAction>>> = {
   owner: new Set(workspaceActions),
-  admin: new Set([
-    "workspace:view",
-    "team:view",
-    "team:manage",
-    "membership:list",
-    "membership:invite",
-    "membership:deactivate",
-  ]),
   member: new Set(["workspace:view", "team:view", "membership:list"]),
   guest: new Set(["workspace:view"]),
 };
@@ -43,10 +35,6 @@ export function canInviteAs(actorRole: WorkspaceRole, invitedRole: WorkspaceRole
     return false;
   }
 
-  if (actorRole === "admin") {
-    return invitedRole === "member" || invitedRole === "guest";
-  }
-
   return actorRole === "owner";
 }
 
@@ -64,10 +52,6 @@ export function canDeactivateMembership(
     !can(input.actorRole, "membership:deactivate")
   ) {
     return false;
-  }
-
-  if (input.actorRole === "admin") {
-    return input.targetRole === "member" || input.targetRole === "guest";
   }
 
   return input.actorRole === "owner";
