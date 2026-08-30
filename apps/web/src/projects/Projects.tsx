@@ -21,6 +21,7 @@ import {
   updateWorkflow,
 } from "../api/client.js";
 import { TaskBoard } from "../tasks/TaskList.js";
+import { FieldLabel } from "../ui/FieldLabel.js";
 
 type ProjectsProps = Readonly<{
   errorMessage: (error: unknown) => string;
@@ -47,12 +48,18 @@ export function Projects({ errorMessage, workspace }: ProjectsProps) {
   const selectedProject = projects.data?.projects.find(
     (project) => project.id === selectedProjectId,
   );
+  useEffect(() => {
+    if (selectedProjectId) window.scrollTo(0, 0);
+  }, [selectedProjectId]);
 
   if (selectedProject) {
     return (
       <ProjectDetail
         errorMessage={errorMessage}
-        onBack={() => setSelectedProjectId(undefined)}
+        onBack={() => {
+          setSelectedProjectId(undefined);
+          window.scrollTo(0, 0);
+        }}
         project={selectedProject}
         workspace={workspace}
       />
@@ -80,7 +87,14 @@ export function Projects({ errorMessage, workspace }: ProjectsProps) {
         </div>
 
         {projects.isPending && <div className="table-state">Loading projects…</div>}
-        {projects.isError && <div className="notice is-error">{errorMessage(projects.error)}</div>}
+        {projects.isError && (
+          <div className="notice is-error" role="alert">
+            {errorMessage(projects.error)}
+            <button className="text-button" onClick={() => projects.refetch()} type="button">
+              Try again
+            </button>
+          </div>
+        )}
         {projects.data?.projects.length === 0 && (
           <div className="empty-state">
             <h3>No projects available</h3>
@@ -186,7 +200,7 @@ function ProjectCreation({
         }}
       >
         <label>
-          Name
+          <FieldLabel required>Name</FieldLabel>
           <input
             maxLength={100}
             onChange={(event) => setName(event.target.value)}
@@ -196,7 +210,7 @@ function ProjectCreation({
           />
         </label>
         <label>
-          Key
+          <FieldLabel required>Key</FieldLabel>
           <input
             maxLength={10}
             minLength={2}
@@ -266,31 +280,62 @@ function ProjectDetail({
           </p>
         </div>
       </div>
-      <div className="detail-tabs" role="tablist" aria-label="Project configuration">
+      <div
+        aria-label="Project configuration"
+        className="detail-tabs"
+        onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "End", "Home"].includes(event.key)) return;
+          const tabs = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+          );
+          const currentIndex = tabs.indexOf(event.target as HTMLButtonElement);
+          if (currentIndex < 0) return;
+          event.preventDefault();
+          const targetIndex =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? tabs.length - 1
+                : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                  tabs.length;
+          tabs[targetIndex]?.focus();
+          tabs[targetIndex]?.click();
+        }}
+        role="tablist"
+      >
         <button
+          aria-controls="project-tasks-panel"
           aria-selected={tab === "tasks"}
           className={tab === "tasks" ? "is-active" : ""}
+          id="project-tasks-tab"
           onClick={() => setTab("tasks")}
           role="tab"
+          tabIndex={tab === "tasks" ? 0 : -1}
           type="button"
         >
           Tasks
         </button>
         <button
+          aria-controls="project-workflow-panel"
           aria-selected={tab === "workflow"}
           className={tab === "workflow" ? "is-active" : ""}
+          id="project-workflow-tab"
           onClick={() => setTab("workflow")}
           role="tab"
+          tabIndex={tab === "workflow" ? 0 : -1}
           type="button"
         >
           Workflow
         </button>
         {project.abilities.canManageAccess && (
           <button
+            aria-controls="project-access-panel"
             aria-selected={tab === "access"}
             className={tab === "access" ? "is-active" : ""}
+            id="project-access-tab"
             onClick={() => setTab("access")}
             role="tab"
+            tabIndex={tab === "access" ? 0 : -1}
             type="button"
           >
             Access
@@ -298,10 +343,13 @@ function ProjectDetail({
         )}
         {project.abilities.canManageProject && (
           <button
+            aria-controls="project-settings-panel"
             aria-selected={tab === "settings"}
             className={tab === "settings" ? "is-active" : ""}
+            id="project-settings-tab"
             onClick={() => setTab("settings")}
             role="tab"
+            tabIndex={tab === "settings" ? 0 : -1}
             type="button"
           >
             Settings
@@ -309,18 +357,25 @@ function ProjectDetail({
         )}
       </div>
 
-      {tab === "tasks" && (
-        <TaskBoard errorMessage={errorMessage} project={project} workspace={workspace} />
-      )}
-      {tab === "workflow" && (
-        <WorkflowEditor errorMessage={errorMessage} project={project} workspace={workspace} />
-      )}
-      {tab === "access" && project.abilities.canManageAccess && (
-        <AccessManager errorMessage={errorMessage} project={project} workspace={workspace} />
-      )}
-      {tab === "settings" && project.abilities.canManageProject && (
-        <ProjectSettings errorMessage={errorMessage} project={project} workspace={workspace} />
-      )}
+      <div
+        aria-labelledby={`project-${tab}-tab`}
+        className="project-tab-panel"
+        id={`project-${tab}-panel`}
+        role="tabpanel"
+      >
+        {tab === "tasks" && (
+          <TaskBoard errorMessage={errorMessage} project={project} workspace={workspace} />
+        )}
+        {tab === "workflow" && (
+          <WorkflowEditor errorMessage={errorMessage} project={project} workspace={workspace} />
+        )}
+        {tab === "access" && project.abilities.canManageAccess && (
+          <AccessManager errorMessage={errorMessage} project={project} workspace={workspace} />
+        )}
+        {tab === "settings" && project.abilities.canManageProject && (
+          <ProjectSettings errorMessage={errorMessage} project={project} workspace={workspace} />
+        )}
+      </div>
     </section>
   );
 }
@@ -358,7 +413,14 @@ function WorkflowEditor({
   });
 
   if (workflow.isError) {
-    return <div className="notice is-error">{errorMessage(workflow.error)}</div>;
+    return (
+      <div className="notice is-error" role="alert">
+        {errorMessage(workflow.error)}
+        <button className="text-button" onClick={() => workflow.refetch()} type="button">
+          Try again
+        </button>
+      </div>
+    );
   }
   if (workflow.isPending || !draft) {
     return <article className="panel-card table-state">Loading workflow…</article>;
@@ -586,7 +648,14 @@ function AccessManager({
         </div>
       </div>
       {access.isPending && <div className="table-state">Loading project access…</div>}
-      {access.isError && <div className="notice is-error">{errorMessage(access.error)}</div>}
+      {access.isError && (
+        <div className="notice is-error" role="alert">
+          {errorMessage(access.error)}
+          <button className="text-button" onClick={() => access.refetch()} type="button">
+            Try again
+          </button>
+        </div>
+      )}
       {access.data && (
         <div className="access-list">
           {access.data.members.map((member) => (
@@ -666,7 +735,7 @@ function ProjectSettings({
         }}
       >
         <label>
-          Project name
+          <FieldLabel required>Project name</FieldLabel>
           <input
             maxLength={100}
             onChange={(event) => setName(event.target.value)}

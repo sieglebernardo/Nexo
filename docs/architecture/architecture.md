@@ -25,7 +25,7 @@ Domain rules + database transaction
 | Module | Owns |
 |---|---|
 | Identity & Access | Authentication integration, users, sessions, invitations, abilities. |
-| Workspaces | Workspaces, memberships, roles, teams. |
+| Workspaces | Companies, company memberships, workspaces, memberships, roles, teams. |
 | Projects & Workflows | Projects, project access, workflows, statuses, views. |
 | Tasks | Task lifecycle, assignment, priority, labels, ordering. |
 | Collaboration | Comments and mentions. |
@@ -64,6 +64,8 @@ V1 allows movement between any active project statuses for an authorized Contrib
 
 - Generate opaque sortable IDs in the application; expose project-local task identifiers such as `NEX-142`.
 - Put `workspace_id` on tenant-owned rows and enforce same-workspace references where practical.
+  Every workspace has one validated `company_id`; company membership never substitutes for workspace
+  membership in normal product APIs.
 - Attribute tasks, comments, activity, and notifications to workspace membership IDs.
 - Retain inactive memberships for historical attribution.
 - Store timestamps in UTC. Store V1 task due dates as SQL `date` values.
@@ -78,7 +80,10 @@ Task activity is append-only, typed, schema-versioned, and user-visible. Domain/
 
 ## Authorization
 
-The backend policy layer is authoritative. Workspace roles are Owner, Admin, Member, and Guest. Project roles are Lead, Contributor, and Viewer. API resources may include calculated abilities for rendering, but the client never grants access.
+The backend policy layer is authoritative. Workspace roles are Owner, Member, and Guest. Platform
+administration is a separate trusted grant, never a workspace role. Project roles are Lead,
+Contributor, and Viewer. API resources may include calculated abilities for rendering, but the client
+never grants access.
 
 ## Read performance
 

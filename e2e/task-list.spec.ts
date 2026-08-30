@@ -67,8 +67,8 @@ async function removeTestIdentity(email: string) {
       await client.query("rollback");
       return;
     }
-    const workspaceResult = await client.query<{ workspace_id: string }>(
-      "select workspace_id from memberships where user_id = $1",
+    const workspaceResult = await client.query<{ company_id: string; workspace_id: string }>(
+      "select workspace_id, company_id from memberships where user_id = $1",
       [userId],
     );
     for (const { workspace_id: workspaceId } of workspaceResult.rows) {
@@ -80,6 +80,10 @@ async function removeTestIdentity(email: string) {
       await client.query("delete from teams where workspace_id = $1", [workspaceId]);
       await client.query("delete from memberships where workspace_id = $1", [workspaceId]);
       await client.query("delete from workspaces where id = $1", [workspaceId]);
+    }
+    for (const { company_id: companyId } of workspaceResult.rows) {
+      await client.query("delete from company_memberships where company_id = $1", [companyId]);
+      await client.query("delete from companies where id = $1", [companyId]);
     }
     await client.query("delete from auth_verifications where identifier = $1", [email]);
     await client.query("delete from users where id = $1", [userId]);
@@ -104,8 +108,15 @@ function observeBrowserFailures(page: Page) {
   return failures;
 }
 
+async function expectNoPageWideHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
 test("verified user can manage a task through its project workflow", async ({ page, request }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const uniqueRun = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const email = `nexo-e2e-${uniqueRun}@example.com`;
   const password = "Nexo-e2e-password-2026!";
@@ -113,7 +124,33 @@ test("verified user can manage a task through its project workflow", async ({ pa
 
   try {
     await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Keep the work moving without losing the thread." }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" }).first()).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    await expectNoPageWideHorizontalOverflow(page);
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    const landingMenuButton = page.getByRole("button", { name: "Open navigation" });
+    await landingMenuButton.click();
+    const landingMobileNavigation = page.getByRole("navigation", {
+      name: "Mobile landing page",
+    });
+    await expect(landingMobileNavigation).toBeVisible();
+    await expect(
+      landingMobileNavigation.getByRole("link", { name: "Create account" }),
+    ).toHaveAttribute("href", "/signup");
+    await expectNoPageWideHorizontalOverflow(page);
+    await landingMobileNavigation.getByRole("link", { name: "Sign in" }).click();
+    await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole("heading", { name: "Sign in to your workspace" })).toBeVisible();
+
+    await page.goto("/signup");
+    await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+    await page.setViewportSize({ height: 900, width: 1280 });
     await page.getByRole("button", { name: "Create account", exact: true }).first().click();
     const authForm = page.locator("form.stack-form");
     await authForm.getByLabel("Your name").fill("Nexo E2E");
@@ -129,10 +166,72 @@ test("verified user can manage a task through its project workflow", async ({ pa
     await expect(page.getByRole("heading", { name: "Give your team a home." })).toBeVisible();
 
     const workspaceForm = page.locator("form.stack-form");
+    await workspaceForm.getByLabel("Company name").fill(`E2E Company ${uniqueRun}`);
     await workspaceForm.getByLabel("Workspace name").fill(`E2E Workspace ${uniqueRun}`);
-    await workspaceForm.getByLabel("Workspace timezone").fill("UTC");
+    await workspaceForm.getByLabel("Workspace timezone").selectOption("UTC");
     await workspaceForm.getByRole("button", { name: "Create workspace" }).click();
     await expect(page.getByRole("heading", { name: /Welcome to E2E Workspace/ })).toBeVisible();
+    await expectNoPageWideHorizontalOverflow(page);
+
+    await page.goto("/admin");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: /Welcome to E2E Workspace/ })).toBeVisible();
+    await expect(page.getByText("Checking administrative access…")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Companies", exact: true })).toHaveCount(0);
+
+    const desktopSidebar = page.locator(".desktop-sidebar");
+    await page.getByRole("button", { name: "Collapse sidebar" }).click();
+    await expect(desktopSidebar).toHaveClass(/is-collapsed/);
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("nexo.sidebar-collapsed")))
+      .toBe("true");
+    const collapsedProjectsButton = page.getByRole("button", { name: "Projects", exact: true });
+    await collapsedProjectsButton.focus();
+    await expect(page.locator("#desktop-projects-tooltip")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Home", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await page.reload();
+    await expect(page.locator(".desktop-sidebar")).toHaveClass(/is-collapsed/);
+    await page.getByRole("button", { name: "Expand sidebar" }).click();
+    await expect(page.locator(".desktop-sidebar")).not.toHaveClass(/is-collapsed/);
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    const mobileTrigger = page.getByRole("button", { name: "Open navigation" });
+    await mobileTrigger.click();
+    const mobileNavigation = page.getByRole("dialog", { name: "Navigation menu" });
+    await expect(mobileNavigation).toBeVisible();
+    await expect(mobileNavigation.getByRole("button", { name: "Close navigation" })).toBeFocused();
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+    await page.keyboard.press("Shift+Tab");
+    await expect(mobileNavigation.getByRole("button", { name: "Sign out" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(mobileNavigation.getByRole("button", { name: "Close navigation" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(mobileNavigation).toBeHidden();
+    await expect(mobileTrigger).toBeFocused();
+
+    await mobileTrigger.click();
+    await page.locator(".drawer-backdrop").click({ position: { x: 380, y: 400 } });
+    await expect(page.getByRole("dialog", { name: "Navigation menu" })).toBeHidden();
+    await expect(mobileTrigger).toBeFocused();
+
+    await mobileTrigger.click();
+    await page
+      .getByRole("dialog", { name: "Navigation menu" })
+      .getByRole("button", { name: "Home", exact: true })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Navigation menu" })).toBeHidden();
+    await expectNoPageWideHorizontalOverflow(page);
+    await page.setViewportSize({ height: 900, width: 768 });
+    await expect(page.getByRole("button", { name: "Open navigation" })).toBeVisible();
+    await expectNoPageWideHorizontalOverflow(page);
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(page.getByRole("dialog", { name: "Navigation menu" })).toBeVisible();
+    await page.setViewportSize({ height: 720, width: 1280 });
+    await expect(page.getByRole("dialog", { name: "Navigation menu" })).toBeHidden();
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
 
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Task Board Visibility" })).toBeVisible();
@@ -151,6 +250,22 @@ test("verified user can manage a task through its project workflow", async ({ pa
     await projectForm.getByLabel("Name").fill("E2E Task Project");
     await projectForm.getByLabel("Key").fill("E2E");
     await projectForm.getByRole("button", { name: "Create project" }).click();
+    await expect(page.getByRole("heading", { name: "Task board" })).toBeVisible();
+    await expectNoPageWideHorizontalOverflow(page);
+    const boardOverflow = await page
+      .locator(".kanban-board")
+      .evaluate((board) => board.scrollWidth - board.clientWidth);
+    expect(boardOverflow).toBeGreaterThan(0);
+    const tasksTab = page.getByRole("tab", { name: "Tasks" });
+    await tasksTab.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("tab", { name: "Workflow" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByRole("heading", { name: "Edit workflow" })).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(tasksTab).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("heading", { name: "Task board" })).toBeVisible();
 
     await page.getByPlaceholder("Add a task…").fill("Browser task");
@@ -182,7 +297,7 @@ test("verified user can manage a task through its project workflow", async ({ pa
       (response) =>
         response.request().method() === "POST" && response.url().endsWith("/transition"),
     );
-    await taskCard.dragTo(page.getByRole("region", { name: "In progress" }));
+    await statusSelect.selectOption({ label: "In progress" });
     expect((await transitionResponse).status()).toBe(200);
     await expect(statusSelect.locator("option:checked")).toHaveText("In progress");
     await expect(taskCard).not.toContainText("Saving…");

@@ -5,6 +5,7 @@ import {
   type DatabaseConnection,
   users,
 } from "@nexo/database";
+import type { SecondaryStorage } from "better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { v7 as uuidv7 } from "uuid";
@@ -16,9 +17,15 @@ type CreateAuthOptions = Readonly<{
   config: ApiConfig;
   database: DatabaseConnection;
   emailDelivery: EmailDelivery;
+  secondaryStorage?: SecondaryStorage;
 }>;
 
-export function createAuth({ config, database, emailDelivery }: CreateAuthOptions) {
+export function createAuth({
+  config,
+  database,
+  emailDelivery,
+  secondaryStorage,
+}: CreateAuthOptions) {
   return betterAuth({
     advanced: {
       database: {
@@ -64,7 +71,7 @@ export function createAuth({ config, database, emailDelivery }: CreateAuthOption
       },
       enabled: true,
       max: 100,
-      storage: "memory",
+      storage: secondaryStorage ? "secondary-storage" : "memory",
       window: 60,
     },
     secret: config.authSecret,
@@ -73,8 +80,10 @@ export function createAuth({ config, database, emailDelivery }: CreateAuthOption
         enabled: false,
       },
       expiresIn: 60 * 60 * 24 * 7,
+      storeSessionInDatabase: true,
       updateAge: 60 * 60 * 24,
     },
+    secondaryStorage,
     trustedOrigins: [config.webOrigin],
   });
 }

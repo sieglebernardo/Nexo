@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import {
+  companies,
+  companyMemberships,
   type DatabaseConnection,
   invitations,
   memberships,
@@ -84,11 +86,18 @@ export class WorkspaceService {
     });
   }
 
-  async createWorkspace(userId: string, input: Readonly<{ name: string; timezone: string }>) {
+  async createWorkspace(
+    userId: string,
+    input: Readonly<{ companyName: string; name: string; timezone: string }>,
+  ) {
+    const companyName = input.companyName.trim();
     const name = input.name.trim();
     const timezone = input.timezone.trim();
     const now = new Date();
 
+    if (companyName.length === 0) {
+      throw new ApiProblem(400, "invalid_company_name", "Company name is required");
+    }
     if (name.length === 0) {
       throw new ApiProblem(400, "invalid_workspace_name", "Workspace name is required");
     }
@@ -101,10 +110,25 @@ export class WorkspaceService {
 
     const workspace = await this.database.db.transaction(async (transaction) => {
       const workspaceId = uuidv7();
+      const companyId = uuidv7();
       const membershipId = uuidv7();
       const generalTeamId = uuidv7();
 
+      await transaction.insert(companies).values({
+        createdAt: now,
+        id: companyId,
+        name: companyName,
+        updatedAt: now,
+      });
+      await transaction.insert(companyMemberships).values({
+        companyId,
+        createdAt: now,
+        role: "owner",
+        updatedAt: now,
+        userId,
+      });
       await transaction.insert(workspaces).values({
+        companyId,
         createdAt: now,
         id: workspaceId,
         name,
@@ -112,6 +136,7 @@ export class WorkspaceService {
         updatedAt: now,
       });
       await transaction.insert(memberships).values({
+        companyId,
         createdAt: now,
         id: membershipId,
         role: "owner",
@@ -305,7 +330,7 @@ export class WorkspaceService {
       invitedByName: actorUser.name,
       role: input.role,
       to: email,
-      url: `${this.config.webOrigin}/?invitation=${encodeURIComponent(rawToken)}`,
+      url: `${this.config.webOrigin}/#invitation=${encodeURIComponent(rawToken)}`,
       workspaceName: result.workspaceName,
     });
 
@@ -325,6 +350,7 @@ export class WorkspaceService {
           role: invitations.role,
           timezone: workspaces.timezone,
           workspaceId: invitations.workspaceId,
+          companyId: workspaces.companyId,
           workspaceName: workspaces.name,
         })
         .from(invitations)
@@ -359,10 +385,22 @@ export class WorkspaceService {
         .limit(1);
       const membershipId = existingRows[0]?.id ?? uuidv7();
 
+      await transaction
+        .insert(companyMemberships)
+        .values({
+          companyId: invitation.companyId,
+          createdAt: now,
+          role: "member",
+          updatedAt: now,
+          userId: user.id,
+        })
+        .onConflictDoNothing();
+
       if (existingRows.length > 0) {
         await transaction
           .update(memberships)
           .set({
+            companyId: invitation.companyId,
             deactivatedAt: null,
             deactivatedByMembershipId: null,
             role: invitation.role,
@@ -371,6 +409,7 @@ export class WorkspaceService {
           .where(eq(memberships.id, membershipId));
       } else {
         await transaction.insert(memberships).values({
+          companyId: invitation.companyId,
           createdAt: now,
           id: membershipId,
           role: invitation.role,

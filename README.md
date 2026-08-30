@@ -35,6 +35,26 @@ npm test
 npm run build
 ```
 
+## Production deployment
+
+Run the API behind an HTTPS reverse proxy and provide explicit production settings. Production
+startup fails closed unless the database uses TLS (`sslmode=require`, `verify-ca`, or
+`verify-full`), Redis uses `rediss://`, SMTP uses implicit TLS or STARTTLS, and both application
+origins use HTTPS. Set `TRUST_PROXY_CIDRS` only to the proxy networks that are allowed to provide
+client IP headers.
+
+Build and run the compiled API from the repository root:
+
+```sh
+npm ci
+npm run build
+npm run start -w @nexo/api
+```
+
+Apply database migrations as a separate deployment step before serving traffic. Do not expose
+PostgreSQL, Redis, or Mailpit to the public network; the ports in `compose.yaml` are localhost-only
+for development.
+
 ## Browser smoke test
 
 With PostgreSQL and Mailpit running, install the browser once and run the real authentication and

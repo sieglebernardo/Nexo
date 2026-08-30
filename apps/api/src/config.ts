@@ -6,10 +6,13 @@ export type ApiConfig = Readonly<{
   host: string;
   invitationTtlHours: number;
   port: number;
+  redisUrl?: string;
   secureCookies: boolean;
   smtpHost: string;
+  smtpRequireTls?: boolean;
   smtpPort: number;
   smtpSecure: boolean;
+  trustProxy?: string[];
   webOrigin: string;
 }>;
 
@@ -33,6 +36,7 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
   const smtpPort = Number.parseInt(environment.SMTP_PORT ?? "1025", 10);
   const invitationTtlHours = Number.parseInt(environment.INVITATION_TTL_HOURS ?? "168", 10);
   const nodeEnvironment = environment.NODE_ENV ?? "development";
+  const isProduction = nodeEnvironment === "production";
   const authSecret = environment.BETTER_AUTH_SECRET ?? "";
   const authBaseUrl = readExactOrigin(
     environment.BETTER_AUTH_URL ?? "http://localhost:3000",
@@ -52,28 +56,66 @@ export function readApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
   if (!Number.isInteger(invitationTtlHours) || invitationTtlHours < 1) {
     throw new Error("INVITATION_TTL_HOURS must be a positive integer");
   }
+  if (!["development", "test", "production"].includes(nodeEnvironment)) {
+    throw new Error("NODE_ENV must be development, test, or production");
+  }
   if (authSecret.length < 32) {
     throw new Error("BETTER_AUTH_SECRET must contain at least 32 characters");
   }
   if (
-    nodeEnvironment === "production" &&
+    isProduction &&
     (new URL(authBaseUrl).protocol !== "https:" || new URL(webOrigin).protocol !== "https:")
   ) {
     throw new Error("BETTER_AUTH_URL and WEB_ORIGIN must use HTTPS in production");
   }
 
+  const databaseUrl = environment.DATABASE_URL ?? "postgresql://nexo:nexo@localhost:5432/nexo";
+  const smtpSecure = environment.SMTP_SECURE === "true";
+  const smtpRequireTls = environment.SMTP_REQUIRE_TLS === "true";
+  const redisUrl = environment.REDIS_URL;
+  const trustProxy = environment.TRUST_PROXY_CIDRS?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (isProduction) {
+    if (!environment.DATABASE_URL) {
+      throw new Error("DATABASE_URL is required in production");
+    }
+    if (!/[?&]sslmode=(require|verify-ca|verify-full)(?:&|$)/i.test(databaseUrl)) {
+      throw new Error("DATABASE_URL must require TLS in production via sslmode");
+    }
+    if (!environment.EMAIL_FROM) {
+      throw new Error("EMAIL_FROM is required in production");
+    }
+    if (!environment.SMTP_HOST) {
+      throw new Error("SMTP_HOST is required in production");
+    }
+    if (!smtpSecure && !smtpRequireTls) {
+      throw new Error("SMTP must use implicit TLS or require STARTTLS in production");
+    }
+    if (!redisUrl) {
+      throw new Error("REDIS_URL is required in production for shared rate limiting");
+    }
+    if (!redisUrl.startsWith("rediss://")) {
+      throw new Error("REDIS_URL must use rediss:// in production");
+    }
+  }
+
   return {
     authBaseUrl,
     authSecret,
-    databaseUrl: environment.DATABASE_URL ?? "postgresql://nexo:nexo@localhost:5432/nexo",
+    databaseUrl,
     emailFrom: environment.EMAIL_FROM ?? "Nexo <noreply@nexo.local>",
     host: environment.API_HOST ?? "0.0.0.0",
     invitationTtlHours,
     port,
-    secureCookies: nodeEnvironment === "production",
+    ...(redisUrl ? { redisUrl } : {}),
+    secureCookies: isProduction,
     smtpHost: environment.SMTP_HOST ?? "localhost",
+    smtpRequireTls: smtpRequireTls || isProduction,
     smtpPort,
-    smtpSecure: environment.SMTP_SECURE === "true",
+    smtpSecure,
+    ...(trustProxy?.length ? { trustProxy } : {}),
     webOrigin,
   };
 }

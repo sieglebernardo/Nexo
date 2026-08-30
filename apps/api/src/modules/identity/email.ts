@@ -25,6 +25,7 @@ export function createSmtpEmailDelivery(config: ApiConfig): EmailDelivery {
   const transport = nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
+    requireTLS: config.smtpRequireTls ?? false,
     secure: config.smtpSecure,
   });
 

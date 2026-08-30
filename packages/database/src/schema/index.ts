@@ -15,7 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const workspaceRole = pgEnum("workspace_role", ["owner", "admin", "member", "guest"]);
+export const workspaceRole = pgEnum("workspace_role", ["owner", "member", "guest"]);
 export const taskBoardVisibility = pgEnum("task_board_visibility", ["collaborative", "private"]);
 export const projectVisibility = pgEnum("project_visibility", ["workspace", "private"]);
 export const projectRole = pgEnum("project_role", ["lead", "contributor", "viewer"]);
@@ -48,6 +48,72 @@ export const users = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   },
   (table) => [uniqueIndex("users_email_normalized_unique").on(table.email)],
+);
+
+export const companies = pgTable(
+  "companies",
+  {
+    id: uuid("id").primaryKey(),
+    name: text("name").notNull(),
+    requiresReview: boolean("requires_review").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (table) => [index("companies_name_idx").on(table.name, table.id)],
+);
+
+export const companyMemberships = pgTable(
+  "company_memberships",
+  {
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    role: text("role").notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.companyId, table.userId] }),
+    index("company_memberships_user_idx").on(table.userId, table.companyId),
+  ],
+);
+
+export const platformAdmins = pgTable(
+  "platform_admins",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    grantedAt: timestamp("granted_at", { mode: "date", withTimezone: true }).notNull(),
+    grantedBy: text("granted_by").notNull(),
+  },
+  (table) => [index("platform_admins_granted_at_idx").on(table.grantedAt)],
+);
+
+export const administrativeAuditLogs = pgTable(
+  "administrative_audit_logs",
+  {
+    id: uuid("id").primaryKey(),
+    adminUserId: uuid("admin_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    action: text("action").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    occurredAt: timestamp("occurred_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("administrative_audit_logs_company_time_idx").on(
+      table.companyId,
+      table.occurredAt,
+      table.id,
+    ),
+  ],
 );
 
 export const authSessions = pgTable(
@@ -111,21 +177,29 @@ export const authVerifications = pgTable(
   (table) => [index("auth_verifications_identifier_idx").on(table.identifier)],
 );
 
-export const workspaces = pgTable("workspaces", {
-  id: uuid("id").primaryKey(),
-  name: text("name").notNull(),
-  taskBoardVisibility: taskBoardVisibility("task_board_visibility")
-    .notNull()
-    .default("collaborative"),
-  timezone: text("timezone").notNull(),
-  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
-});
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    taskBoardVisibility: taskBoardVisibility("task_board_visibility")
+      .notNull()
+      .default("collaborative"),
+    timezone: text("timezone").notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (table) => [unique("workspaces_company_id_id_unique").on(table.companyId, table.id)],
+);
 
 export const memberships = pgTable(
   "memberships",
   {
     id: uuid("id").primaryKey(),
+    companyId: uuid("company_id").notNull(),
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
@@ -143,6 +217,7 @@ export const memberships = pgTable(
     unique("memberships_workspace_id_id_unique").on(table.workspaceId, table.id),
     index("memberships_user_id_idx").on(table.userId),
     index("memberships_workspace_active_idx").on(table.workspaceId, table.deactivatedAt),
+    index("memberships_company_user_idx").on(table.companyId, table.userId),
   ],
 );
 
@@ -351,6 +426,7 @@ export const taskActivities = pgTable(
 );
 
 export type AuthUser = typeof users.$inferSelect;
+export type Company = typeof companies.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type Workspace = typeof workspaces.$inferSelect;
 export type Project = typeof projects.$inferSelect;

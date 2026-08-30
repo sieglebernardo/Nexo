@@ -42,7 +42,7 @@ describe("project authorization", () => {
     ).toBe(true);
     expect(
       canAccessProject(
-        { explicitRole: "viewer", visibility: "private", workspaceRole: "admin" },
+        { explicitRole: "viewer", visibility: "private", workspaceRole: "owner" },
         "workflow:manage",
       ),
     ).toBe(false);
@@ -50,7 +50,6 @@ describe("project authorization", () => {
 
   it("allows non-guests to create projects and prevents Guest Leads", () => {
     expect(canCreateProject("owner")).toBe(true);
-    expect(canCreateProject("admin")).toBe(true);
     expect(canCreateProject("member")).toBe(true);
     expect(canCreateProject("guest")).toBe(false);
     expect(canAssignProjectRole("guest", "lead")).toBe(false);

@@ -6,6 +6,18 @@ const baseEnvironment = {
   BETTER_AUTH_SECRET: "test-secret-that-is-at-least-32-characters",
 };
 
+const productionEnvironment = {
+  ...baseEnvironment,
+  BETTER_AUTH_URL: "https://api.nexo.example",
+  DATABASE_URL: "postgresql://nexo:secret@db.example/nexo?sslmode=require",
+  EMAIL_FROM: "Nexo <noreply@nexo.example>",
+  NODE_ENV: "production",
+  REDIS_URL: "rediss://redis.example",
+  SMTP_HOST: "smtp.example",
+  SMTP_REQUIRE_TLS: "true",
+  WEB_ORIGIN: "https://nexo.example",
+};
+
 describe("API configuration", () => {
   it("accepts exact local origins in development", () => {
     expect(readApiConfig(baseEnvironment)).toMatchObject({
@@ -29,13 +41,25 @@ describe("API configuration", () => {
       "must use HTTPS in production",
     );
 
+    expect(readApiConfig(productionEnvironment).secureCookies).toBe(true);
+  });
+
+  it("requires encrypted production dependencies and shared rate limiting", () => {
+    expect(() =>
+      readApiConfig({ ...productionEnvironment, DATABASE_URL: "postgresql://db/nexo" }),
+    ).toThrow("DATABASE_URL must require TLS");
+    expect(() =>
+      readApiConfig({ ...productionEnvironment, REDIS_URL: "redis://redis.example" }),
+    ).toThrow("REDIS_URL must use rediss://");
+    expect(() => readApiConfig({ ...productionEnvironment, SMTP_REQUIRE_TLS: undefined })).toThrow(
+      "SMTP must use implicit TLS",
+    );
+  });
+
+  it("parses explicitly trusted reverse-proxy networks", () => {
     expect(
-      readApiConfig({
-        ...baseEnvironment,
-        BETTER_AUTH_URL: "https://api.nexo.example",
-        NODE_ENV: "production",
-        WEB_ORIGIN: "https://nexo.example",
-      }).secureCookies,
-    ).toBe(true);
+      readApiConfig({ ...productionEnvironment, TRUST_PROXY_CIDRS: "10.0.0.0/8, 192.0.2.10" })
+        .trustProxy,
+    ).toEqual(["10.0.0.0/8", "192.0.2.10"]);
   });
 });

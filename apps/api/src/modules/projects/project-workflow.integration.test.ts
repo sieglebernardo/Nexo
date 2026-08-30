@@ -74,6 +74,7 @@ describe("project and workflow slice", () => {
       "0002_project_workflow.sql",
       "0003_task_list.sql",
       "0004_kanban_visibility.sql",
+      "0005_companies_platform_admin.sql",
     ]) {
       const migration = await readFile(
         new URL(`../../../../../packages/database/migrations/${migrationName}`, import.meta.url),
@@ -93,6 +94,8 @@ describe("project and workflow slice", () => {
 
     workspaceAId = uuidv7();
     workspaceBId = uuidv7();
+    const companyAId = uuidv7();
+    const companyBId = uuidv7();
     teamAId = uuidv7();
     aliceMembershipId = uuidv7();
     bobMembershipAId = uuidv7();
@@ -109,13 +112,38 @@ describe("project and workflow slice", () => {
         updatedAt: now,
       })),
     );
+    await db.insert(schema.companies).values([
+      { createdAt: now, id: companyAId, name: "Alpha Co", updatedAt: now },
+      { createdAt: now, id: companyBId, name: "Beta Co", updatedAt: now },
+    ]);
     await db.insert(schema.workspaces).values([
-      { createdAt: now, id: workspaceAId, name: "Alpha", timezone: "UTC", updatedAt: now },
-      { createdAt: now, id: workspaceBId, name: "Beta", timezone: "UTC", updatedAt: now },
+      {
+        companyId: companyAId,
+        createdAt: now,
+        id: workspaceAId,
+        name: "Alpha",
+        timezone: "UTC",
+        updatedAt: now,
+      },
+      {
+        companyId: companyBId,
+        createdAt: now,
+        id: workspaceBId,
+        name: "Beta",
+        timezone: "UTC",
+        updatedAt: now,
+      },
+    ]);
+    await db.insert(schema.companyMemberships).values([
+      { companyId: companyAId, createdAt: now, role: "owner", updatedAt: now, userId: alice.id },
+      { companyId: companyAId, createdAt: now, role: "member", updatedAt: now, userId: bob.id },
+      { companyId: companyAId, createdAt: now, role: "member", updatedAt: now, userId: guest.id },
+      { companyId: companyBId, createdAt: now, role: "owner", updatedAt: now, userId: bob.id },
     ]);
     await db.insert(schema.memberships).values([
       {
         createdAt: now,
+        companyId: companyAId,
         id: aliceMembershipId,
         role: "owner",
         updatedAt: now,
@@ -124,6 +152,7 @@ describe("project and workflow slice", () => {
       },
       {
         createdAt: now,
+        companyId: companyAId,
         id: bobMembershipAId,
         role: "member",
         updatedAt: now,
@@ -132,6 +161,7 @@ describe("project and workflow slice", () => {
       },
       {
         createdAt: now,
+        companyId: companyAId,
         id: guestMembershipId,
         role: "guest",
         updatedAt: now,
@@ -140,6 +170,7 @@ describe("project and workflow slice", () => {
       },
       {
         createdAt: now,
+        companyId: companyBId,
         id: bobMembershipBId,
         role: "owner",
         updatedAt: now,
